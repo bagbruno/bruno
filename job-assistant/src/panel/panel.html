@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Job Assistant</title>
+  <link rel="stylesheet" href="panel.css">
+</head>
+<body>
+  <header>
+    <h1>Job Assistant</h1>
+    <p class="disclosure">
+      Assistive tool only. It fills routine fields when you click, never clicks Submit, and never sends messages.
+      Websites change their rules and layouts; this tool does not guarantee compliance with any platform.
+      <strong>You are responsible for every submission and outreach action.</strong>
+    </p>
+    <div id="pause-banner" class="alert stop" hidden>
+      <strong>Paused — manual action required.</strong>
+      <span id="pause-reason"></span>
+      <button id="resume-btn" type="button">I've handled it myself — resume</button>
+    </div>
+    <nav>
+      <button type="button" data-tab="jobs" class="active">Jobs</button>
+      <button type="button" data-tab="profile">Profile</button>
+      <button type="button" data-tab="outreach">Outreach</button>
+      <button type="button" data-tab="log">Activity log</button>
+      <button type="button" data-tab="about">Rules</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- JOBS -->
+    <section id="tab-jobs" class="tab">
+      <div id="active-job" class="card" hidden></div>
+
+      <details class="card" open>
+        <summary>Add a job you chose</summary>
+        <button id="add-current" type="button">Add the job in my current tab</button>
+        <form id="add-job-form">
+          <label>URL <input name="url" type="url" required placeholder="https://"></label>
+          <label>Title <input name="title"></label>
+          <label>Company <input name="company"></label>
+          <button type="submit">Add</button>
+        </form>
+        <label class="file">Import a list I made (CSV with a <code>url</code> column, or JSON)
+          <input id="import-file" type="file" accept=".csv,.json,text/csv,application/json">
+        </label>
+        <p class="hint">The assistant does not search or collect listings from job boards.</p>
+      </details>
+
+      <div class="filters">
+        <label>Show
+          <select id="job-filter">
+            <option value="open">Not finished</option>
+            <option value="all">All</option>
+            <option value="manual_action_required">Manual action required</option>
+            <option value="submitted">Submitted</option>
+          </select>
+        </label>
+      </div>
+      <ul id="job-list" class="list"></ul>
+    </section>
+
+    <!-- PROFILE -->
+    <section id="tab-profile" class="tab" hidden>
+      <div class="card">
+        <h2>Verified profile</h2>
+        <p class="hint">Only these routine fields are ever filled. Sensitive questions (demographics, salary, work authorization, disability, veteran status, legal attestations, and similar) are always left for you.</p>
+        <form id="profile-form"></form>
+        <p id="verify-status"></p>
+        <button id="verify-btn" type="button">I've checked these details are correct</button>
+      </div>
+      <div class="card">
+        <h2>Resume versions</h2>
+        <form id="resume-form">
+          <label>Version name <input name="label" required placeholder="e.g. Product — Oct 2026"></label>
+          <label>File <input name="file" type="file" required accept=".pdf,.doc,.docx,.txt,.rtf"></label>
+          <button type="submit">Save resume version</button>
+        </form>
+        <ul id="resume-list" class="list"></ul>
+      </div>
+    </section>
+
+    <!-- OUTREACH -->
+    <section id="tab-outreach" class="tab" hidden>
+      <div class="alert info">
+        Drafts wait here for your approval. The assistant never sends connection requests or messages.
+        After you approve one, it can open the profile and copy the text; you paste and click Send yourself.
+        LinkedIn limits how many invitations you can send, and its rules prohibit automating them.
+      </div>
+      <form id="outreach-form" class="card">
+        <label>Person's name <input name="personName" required></label>
+        <label>LinkedIn profile URL <input name="profileUrl" type="url" required placeholder="https://www.linkedin.com/in/…"></label>
+        <label>Type
+          <select name="kind">
+            <option value="connection">Connection request note</option>
+            <option value="message">Message</option>
+          </select>
+        </label>
+        <label>Related job <select name="jobId"></select></label>
+        <label>Text <textarea name="text" rows="5" required></textarea></label>
+        <p id="outreach-count" class="hint"></p>
+        <button type="submit">Save draft for approval</button>
+      </form>
+      <ul id="outreach-list" class="list"></ul>
+    </section>
+
+    <!-- LOG -->
+    <section id="tab-log" class="tab" hidden>
+      <div class="row">
+        <button id="export-csv" type="button">Export CSV</button>
+        <button id="export-json" type="button">Export JSON</button>
+        <button id="clear-log" type="button" class="danger">Clear log</button>
+      </div>
+      <ul id="log-list" class="list log"></ul>
+    </section>
+
+    <!-- RULES / ABOUT -->
+    <section id="tab-about" class="tab" hidden>
+      <div class="card prose">
+        <h2>How this assistant works</h2>
+        <ul>
+          <li>Runs only in your own signed-in Chrome. It uses no proxies, no other accounts, no copied cookies, and nothing that hides that you are using an extension.</li>
+          <li>Works only on jobs you add or import yourself, one application at a time.</li>
+          <li>Fills only routine fields from your verified profile, only when you click <em>Fill routine fields</em>, and never overwrites what you typed.</li>
+          <li>Leaves every sensitive, unusual, or unclear question for you and outlines it in orange or red.</li>
+          <li>Never clicks Submit. You make the final Submit click on every application.</li>
+          <li>Queues LinkedIn connection requests and messages for your approval. Even after approval you send them yourself.</li>
+          <li>Stops right away and labels the job <strong>Manual action required</strong> if it sees a CAPTCHA, a security or verification check, an account warning, a sign-in prompt, or a page it doesn't recognise. It does not try to get around any of these.</li>
+          <li>Keeps an activity log of every job, resume version, field filled, document attached, and submission status.</li>
+        </ul>
+        <h2>Platform rules</h2>
+        <ul id="platform-rules"></ul>
+        <h2>Limits and your responsibility</h2>
+        <p>Websites change their terms and page layouts without notice. Field detection can be wrong, and this tool can't guarantee that any platform allows its use or that an application is complete or correct. Check the current terms of each site you use. You are responsible for reviewing every answer, for each final submission, and for every outreach message.</p>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" role="status" hidden></div>
+
+  <script src="../shared/rules.js"></script>
+  <script src="../shared/store.js"></script>
+  <script src="panel.js"></script>
+</body>
+</html>
