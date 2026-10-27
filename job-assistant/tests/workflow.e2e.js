@@ -343,6 +343,34 @@ function extensionCopy() {
     assert.equal(await sw.evaluate(() => chrome.alarms.get('daily-discovery')), undefined, 'alarm removed');
   });
 
+  await step('Indeed: Fill needs Bruno’s OK, which he can withdraw; LinkedIn has no such option', async () => {
+    await tab('jobs');
+    await panel.click('summary:has-text("Add a job you chose")');
+    await panel.fill('#add-job-form [name=url]', 'https://www.indeed.com/viewjob?jk=abc123');
+    await panel.fill('#add-job-form [name=title]', 'Account Executive');
+    await panel.fill('#add-job-form [name=company]', 'Indeed Co');
+    await panel.click('#add-job-form button[type=submit]');
+    await panel.waitForTimeout(400);
+    assert.match(await jobItem('Account Executive — Indeed Co').textContent(), /Indeed: needs your OK to fill/);
+    const [page] = await Promise.all([ctx.waitForEvent('page'), jobItem('Account Executive — Indeed Co').locator('button', { hasText: 'Open application' }).click()]);
+    await panel.waitForTimeout(800);
+    assert.equal(await panel.isDisabled('#active-job button.primary'), true);
+    await panel.click('#active-job button:has-text("Allow filling on Indeed")');
+    await panel.click('#active-job button:has-text("Confirm: I accept the risk to my Indeed account")');
+    await panel.waitForTimeout(500);
+    assert.ok((await storage('settings')).platformConsent.indeed);
+    assert.match(await panel.textContent('#active-job'), /Filling on Indeed allowed by you/);
+    // The page itself is offline in this test, so the button state is what's checked.
+    assert.equal(await panel.isDisabled('#active-job button.primary'), false, 'Fill enabled after OK');
+    await panel.click('#active-job button:has-text("Withdraw")');
+    await panel.waitForTimeout(500);
+    assert.equal((await storage('settings')).platformConsent.indeed, undefined);
+    assert.equal(await panel.isDisabled('#active-job button.primary'), true, 'Fill disabled again');
+    assert.ok((await logTitles()).includes('Bruno allowed filling on Indeed'));
+    await panel.click('#active-job button:has-text("Close out")');
+    await page.close();
+  });
+
   await step('setup file loads profile, answers, search and resume in one go', async () => {
     const setup = {
       kind: 'job-assistant-setup',

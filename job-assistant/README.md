@@ -35,8 +35,8 @@ A Chrome extension that finds jobs matching Bruno's search, tailors his resume f
 | Site | Assistant behaviour | Why |
 |---|---|---|
 | LinkedIn | **Will not fill.** Use the Copy buttons in the Profile tab. Outreach is drafts only. | LinkedIn's User Agreement prohibits extensions and software that automate activity on LinkedIn. |
-| Indeed | **Will not fill.** | Indeed's terms restrict automated tools. If the listing redirects to the employer's site, the assistant can help there. |
-| Glassdoor | **Will not fill.** | Terms restrict automated tools. |
+| Indeed | **Fills only after Bruno's OK** (two clicks in the side panel, withdrawable), then works like company sites: fill on his click, he submits. No searching or scraping of Indeed. | Indeed's terms restrict automated tools and it can restrict accounts; Bruno accepted that risk for his own account. |
+| Glassdoor | **Same as Indeed.** | Same reason. |
 | Other sites (employer careers pages, Greenhouse, Lever, Workday, etc.) | Fills routine fields on Bruno's click, with a reminder that the site's own terms apply. | — |
 
 When Bruno asks for something the assistant doesn't support (filling on a blocked platform, opening a second application, sending outreach), it shows a warning and does nothing. The table lives in `src/shared/rules.js` (`PLATFORM_RULES`). It's a conservative reading of current terms and should be reviewed as those terms change.
@@ -50,7 +50,7 @@ When Bruno asks for something the assistant doesn't support (filling on a blocke
 
 ## Limits
 
-- LinkedIn, Indeed and Glassdoor have no public job feed and their terms prohibit scraping and automated applying, so jobs there are found with the search links and applied to by hand (Easy Apply included).
+- LinkedIn, Indeed and Glassdoor have no public job feed and their terms prohibit scraping and automated applying, so jobs there are found with the search links. On Indeed and Glassdoor the assistant can fill forms once Bruno allows it; LinkedIn (Easy Apply included) is always filled by hand.
 - Recruiter names can't be looked up automatically for the same reason; Bruno chooses the person from the LinkedIn search.
 - Only company boards on Greenhouse, Lever, Ashby and Workday are searched automatically. Others (iCIMS, Taleo, SmartRecruiters, custom pages) can be added as single jobs and filled.
 - The starting list of company boards was put together from search results; the boards themselves couldn't be reached from the build environment. Any that don't respond are switched off and reported in Profile › Job boards searched.

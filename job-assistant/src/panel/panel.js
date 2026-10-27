@@ -68,6 +68,20 @@
     return b;
   }
 
+  function consents() {
+    return state.settings.platformConsent || {};
+  }
+
+  function setConsent(platform, on) {
+    const c = Object.assign({}, consents());
+    if (on) c[platform.id] = new Date().toISOString();
+    else delete c[platform.id];
+    return Promise.all([
+      S.set('settings', Object.assign({}, state.settings, { platformConsent: c })),
+      S.addLog({ action: (on ? 'Bruno allowed filling on ' : 'Bruno withdrew filling on ') + platform.name, details: on ? 'Accepted the risk that ' + platform.name + ' may restrict his account.' : '' }),
+    ]);
+  }
+
   function jobName(job) {
     return [job.title || '(untitled job)', job.company].filter(Boolean).join(' — ');
   }
@@ -216,14 +230,21 @@
       h('div', { class: 'title' }, jobName(job)),
       h('div', { class: 'meta' }, state.session.activeTabId == null ? 'Tab closed — reopen it from the list.' : 'Tab: ' + url),
       h('div', { class: 'row' }, h('span', { class: 'chip ' + job.status }, R.STATUS_LABEL[job.status]), h('span', { class: 'meta' }, 'Resume: ' + (resume ? resume.label : 'none chosen'))),
-      h('div', { class: 'alert ' + (platform.fill === 'blocked' ? 'warn' : 'info') }, platform.notice)
+      h('div', { class: 'alert ' + (R.canFill(platform, consents()) ? 'info' : 'warn') }, platform.notice)
     );
+    if (platform.fill === 'consent') {
+      box.append(
+        consents()[platform.id]
+          ? h('div', { class: 'row meta' }, 'Filling on ' + platform.name + ' allowed by you on ' + new Date(consents()[platform.id]).toLocaleDateString() + '.', h('button', { type: 'button', onclick: () => setConsent(platform, false) }, 'Withdraw'))
+          : h('div', { class: 'row' }, confirmButton('Allow filling on ' + platform.name, 'Confirm: I accept the risk to my ' + platform.name + ' account', () => setConsent(platform, true), 'danger'))
+      );
+    }
     if (job.status === ST.MANUAL && job.manualReason) box.append(h('div', { class: 'alert stop' }, 'Manual action required: ' + job.manualReason));
     if (job.submitObservedAt && job.status !== ST.SUBMITTED) {
       box.append(h('div', { class: 'alert warn' }, 'You clicked Submit on this page. Once the site shows a confirmation, mark it submitted below.'));
     }
 
-    const canFill = !state.session.paused && state.session.activeTabId != null && platform.fill !== 'blocked' && !FINISHED.includes(job.status);
+    const canFill = !state.session.paused && state.session.activeTabId != null && R.canFill(platform, consents()) && !FINISHED.includes(job.status);
     box.append(
       h('div', { class: 'row' },
         h('button', { type: 'button', class: 'primary', disabled: !canFill, onclick: () => fillActive() }, 'Fill routine fields'),
@@ -257,7 +278,8 @@
           h('div', { class: 'row' },
             job.score != null ? h('span', { class: 'chip score', title: (job.matchReasons || []).join('\n') }, 'Match ' + job.score) : null,
             h('span', { class: 'chip ' + job.status }, R.STATUS_LABEL[job.status]),
-            platform.fill === 'blocked' ? h('span', { class: 'chip manual_action_required', title: platform.notice }, platform.name + ': fill by hand') : null
+            platform.fill === 'blocked' ? h('span', { class: 'chip manual_action_required', title: platform.notice }, platform.name + ': fill by hand') : null,
+            platform.fill === 'consent' && !consents()[platform.id] ? h('span', { class: 'chip awaiting_bruno', title: platform.notice }, platform.name + ': needs your OK to fill') : null
           ),
           job.matchReasons && job.matchReasons.length ? h('div', { class: 'meta' }, job.matchReasons.join(' · ')) : null,
           (job.status === ST.MANUAL || job.status === ST.CLOSED) && job.manualReason ? h('div', { class: 'meta' }, job.manualReason) : null,
@@ -639,7 +661,7 @@
 
     const url = activeTabUrl;
     const platform = R.platformFor(url);
-    if (platform.fill === 'blocked') {
+    if (!R.canFill(platform, consents())) {
       await S.addLog({ jobId: job.id, url, action: 'Fill not performed — platform rules', details: platform.notice });
       return toast(platform.notice);
     }
@@ -666,7 +688,7 @@
       const [res] = await chrome.scripting.executeScript({
         target,
         func: (payload) => globalThis.JobAssistFiller.run(payload),
-        args: [{ jobId: job.id, profile: values, answers: state.answers, resume: resume && { label: resume.label, fileName: resume.fileName, type: resume.type, dataUrl: resume.dataUrl } }],
+        args: [{ jobId: job.id, profile: values, answers: state.answers, consents: consents(), resume: resume && { label: resume.label, fileName: resume.fileName, type: resume.type, dataUrl: resume.dataUrl } }],
       });
       report = res && res.result;
     } catch (err) {

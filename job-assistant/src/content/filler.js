@@ -263,6 +263,7 @@
   }
 
   let listening = false;
+  let consents = {};
   let submitClicked = false;
   let confirmed = false;
 
@@ -281,7 +282,7 @@
           banner('info', 'Application submitted', ['The site confirmed your application. It’s marked submitted in the log.']);
           return;
         }
-        const result = R.assessPage(Object.assign(snap, { url: location.href }));
+        const result = R.assessPage(Object.assign(snap, { url: location.href }), consents);
         const reasons = result.reasons.filter((r) => !/^Posting closed/.test(r));
         if (reasons.length) safetyStop(reasons);
       }, 400);
@@ -315,9 +316,10 @@
    */
   async function run(payload) {
     activeJobId = payload.jobId;
+    consents = payload.consents || {};
     stopped = false;
     const els = controls();
-    const check = R.assessPage(snapshot(els.length));
+    const check = R.assessPage(snapshot(els.length), consents);
     if (check.stop) {
       stopped = true;
       banner('stop', check.expired ? 'Job Assistant stopped — this posting looks closed' : 'Job Assistant stopped — manual action required', check.reasons);

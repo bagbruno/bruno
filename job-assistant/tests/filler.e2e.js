@@ -110,6 +110,20 @@ const run = (page) => page.evaluate((p) => globalThis.JobAssistFiller.run(p), { 
     assert.equal(await page.$eval('#fn', (el) => el.value), '');
   });
 
+  await check('Indeed form: refused without Bruno’s OK, filled with it, never submitted', async (page) => {
+    await load(page, 'https://smartapply.indeed.com/beta/indeedapply/form/contact-info', fixture('application.html'));
+    const no = await page.evaluate((p) => globalThis.JobAssistFiller.run(p), { jobId: 'j1', profile: PROFILE, resume: null });
+    assert.equal(no.ok, false);
+    assert.match(no.reasons.join(' '), /needs your OK/);
+    assert.equal(await page.$eval('#fn', (el) => el.value), '');
+    const yes = await page.evaluate((p) => globalThis.JobAssistFiller.run(p), { jobId: 'j1', profile: PROFILE, resume: RESUME, consents: { indeed: '2026-10-27' } });
+    assert.equal(yes.ok, true, JSON.stringify(yes));
+    assert.equal(await page.$eval('#fn', (el) => el.value), 'Bruno');
+    assert.equal(await page.$eval('#cv', (el) => el.files.length), 1);
+    await page.waitForTimeout(500);
+    assert.equal(await page.evaluate(() => window.__submitted), 0);
+  });
+
   await check('Lever-style form: full name, links, hidden resume input, invisible hCaptcha', async (page) => {
     await load(page, 'https://jobs.lever.co/acme/123/apply', fixture('lever.html'));
     const r = await run(page);

@@ -44,7 +44,14 @@ test('file uploads: resume only', () => {
 
 test('platform rules', () => {
   assert.equal(R.platformFor('https://www.linkedin.com/jobs/view/1').fill, 'blocked');
-  assert.equal(R.platformFor('https://uk.indeed.com/viewjob?jk=1').fill, 'blocked');
+  assert.equal(R.platformFor('https://uk.indeed.com/viewjob?jk=1').fill, 'consent');
+  assert.equal(R.platformFor('https://smartapply.indeed.com/beta/indeedapply/form').id, 'indeed');
+  assert.equal(R.platformFor('https://www.glassdoor.com/job-listing/x').fill, 'consent');
+  const indeed = R.platformFor('https://smartapply.indeed.com/x');
+  assert.equal(R.canFill(indeed, {}), false);
+  assert.equal(R.canFill(indeed, { indeed: '2026-10-27' }), true);
+  assert.equal(R.canFill(indeed, { glassdoor: '2026-10-27' }), false, 'consent is per site');
+  assert.equal(R.canFill(R.platformFor('https://www.linkedin.com/jobs'), { linkedin: 'x', indeed: 'x' }), false, 'LinkedIn can never be allowed');
   assert.equal(R.platformFor('https://boards.greenhouse.io/acme/jobs/1').fill, 'review');
   assert.equal(R.platformFor('https://notlinkedin.com/x').fill, 'review');
 });
@@ -74,6 +81,13 @@ test('assessPage stops on captcha, security text, sign-in, unsupported, blocked 
     const r = R.assessPage(Object.assign({}, base, c));
     assert.equal(r.stop, true, JSON.stringify(c));
   }
+});
+
+test('assessPage on Indeed: stops without Bruno’s OK, fills with it, still stops at CAPTCHAs', () => {
+  const url = 'https://smartapply.indeed.com/beta/indeedapply/form/contact-info';
+  assert.match(R.assessPage(Object.assign({}, base, { url })).reasons.join(), /needs your OK/);
+  assert.equal(R.assessPage(Object.assign({}, base, { url }), { indeed: 'x' }).stop, false);
+  assert.equal(R.assessPage(Object.assign({}, base, { url, captchaElementCount: 1 }), { indeed: 'x' }).stop, true);
 });
 
 test('assessPage ignores ordinary job-description wording', () => {

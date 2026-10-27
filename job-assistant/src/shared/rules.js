@@ -39,6 +39,8 @@
   // "blocked": the assistant will not fill forms on this site. The platform's
   //            terms restrict third-party automation, so Bruno fills by hand
   //            (the side panel offers copy-to-clipboard buttons instead).
+  // "consent": like "review", but only after Bruno has accepted, in the side
+  //            panel, the risk that the site may restrict his account.
   // "review":  routine fields may be filled on Bruno's click; he reviews and
   //            submits himself.
   //
@@ -61,17 +63,21 @@
       id: 'indeed',
       name: 'Indeed',
       hosts: ['indeed.com'],
-      fill: 'blocked',
+      fill: 'consent',
       notice:
-        "Indeed's terms restrict automated tools on its site. The assistant will not fill forms on Indeed. " +
-        "If the listing redirects to the employer's own careers site, the assistant can help there.",
+        "Indeed's terms restrict automated tools, and Indeed can restrict accounts it thinks use them. " +
+        'With your OK, the assistant fills routine fields on Indeed application forms when you click Fill, like on company sites. ' +
+        'It never searches Indeed for you or clicks Submit, and it stops at any security check.',
     },
     {
       id: 'glassdoor',
       name: 'Glassdoor',
       hosts: ['glassdoor.com'],
-      fill: 'blocked',
-      notice: "Glassdoor's terms restrict automated tools. The assistant will not fill forms on Glassdoor.",
+      fill: 'consent',
+      notice:
+        "Glassdoor's terms restrict automated tools, and Glassdoor can restrict accounts it thinks use them. " +
+        'With your OK, the assistant fills routine fields on Glassdoor application forms when you click Fill. ' +
+        'It never searches Glassdoor for you or clicks Submit, and it stops at any security check.',
     },
   ];
 
@@ -98,6 +104,13 @@
       if (rule.hosts.some((d) => hostMatches(host, d))) return rule;
     }
     return { id: 'other', name: host || 'Unknown site', hosts: [], fill: 'review', notice: GENERIC_NOTICE };
+  }
+
+  /** May the assistant fill forms on this platform, given Bruno's consents? */
+  function canFill(platform, consents) {
+    if (platform.fill === 'blocked') return false;
+    if (platform.fill === 'consent') return !!(consents && consents[platform.id]);
+    return true;
   }
 
   // Actions Bruno might ask for that the assistant deliberately does not do.
@@ -273,10 +286,11 @@
    *     fillableFieldCount, crossOriginFormFrames }
    * @returns {{stop: boolean, reasons: string[]}}
    */
-  function assessPage(snap) {
+  function assessPage(snap, consents) {
     const reasons = [];
     const platform = platformFor(snap.url || '');
     if (platform.fill === 'blocked') reasons.push('Platform rules: ' + platform.name + ' does not allow automated form filling');
+    else if (!canFill(platform, consents)) reasons.push('Platform rules: filling on ' + platform.name + ' needs your OK in the side panel first');
 
     if ((snap.iframeSrcs || []).some((s) => CAPTCHA_SRC.test(s)) || (snap.captchaElementCount || 0) > 0) {
       reasons.push('CAPTCHA detected');
@@ -396,6 +410,7 @@
     CAPTCHA_SRC,
     CAPTCHA_SELECTORS,
     platformFor,
+    canFill,
     hostOf,
     classifyField,
     assessPage,
