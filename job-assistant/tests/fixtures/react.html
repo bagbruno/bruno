@@ -1,0 +1,17 @@
+<!doctype html><html><body><form>
+<label for="fn">First name</label><input id="fn">
+<label for="em">Email</label><input id="em" type="email">
+</form>
+<script>
+  // Mimics React's value tracking: an instance-level "value" setter records the
+  // last value React saw; an input event only updates state if el.value differs.
+  window.state = {};
+  for (const el of document.querySelectorAll('input')) {
+    const proto = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+    let tracked = '';
+    Object.defineProperty(el, 'value', { configurable: true,
+      get() { return proto.get.call(this); },
+      set(v) { tracked = String(v); proto.set.call(this, v); } });
+    el.addEventListener('input', () => { const v = proto.get.call(el); if (v !== tracked) { tracked = v; window.state[el.id] = v; } });
+  }
+</script></body></html>

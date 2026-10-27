@@ -57,6 +57,9 @@ tests/                   Unit tests (rules) and browser tests (filler on sample 
 ```sh
 npm test            # unit tests for classification, safety checks, platform rules, import
 npm install && npm run test:e2e   # runs the filler against fixture pages in Chromium (Playwright)
+npm run test:extension            # loads the real extension and drives the side panel end to end
 ```
 
-The browser tests check that routine fields are filled, Bruno's own input isn't overwritten, sensitive and unclear questions are left empty, the resume is attached, the form is never submitted, and the filler stops on CAPTCHAs, security messages, sign-in prompts, unsupported pages, and LinkedIn.
+The browser tests check that routine fields are filled, Bruno's own input isn't overwritten, sensitive and unclear questions are left empty, the resume is attached, the form is never submitted, and the filler stops on CAPTCHAs, security messages, sign-in prompts, unsupported pages, and LinkedIn. They also cover Lever- and Workday-style forms, React-style inputs, a 400-field form, embedded and shadow-DOM forms (both stop safely), and running Fill twice.
+
+The extension test runs the whole flow in the real extension: profile verification, resume versions, Fill from the side panel, the one-application lock, logging Bruno's own Submit click, a CAPTCHA appearing mid-application (everything pauses), LinkedIn jobs (Fill disabled), list import, outreach approval and CSV export. It loads a copy of the extension with the local test site pre-allowed, because a test can't click Chrome's site-permission prompt.

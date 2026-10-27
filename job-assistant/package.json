@@ -5,7 +5,8 @@
   "description": "User-controlled Chrome extension that helps fill routine job-application fields. Never submits or sends anything.",
   "scripts": {
     "test": "node --test tests/rules.test.js",
-    "test:e2e": "node tests/filler.e2e.js"
+    "test:e2e": "node tests/filler.e2e.js",
+    "test:extension": "node tests/extension.e2e.js"
   },
   "devDependencies": {
     "playwright": "^1.50.0"

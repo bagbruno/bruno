@@ -1,0 +1,21 @@
+<!doctype html><html><body>
+<h2>Submit your application</h2>
+<form id="f">
+  <div class="application-question"><div class="application-label">Resume/CV</div>
+    <input type="file" name="resume" id="resume-upload-input" style="opacity:0;position:absolute;width:1px;height:1px"></div>
+  <div class="application-question"><div class="application-label">Full name</div><input type="text" name="name"></div>
+  <div class="application-question"><div class="application-label">Email</div><input type="email" name="email"></div>
+  <div class="application-question"><div class="application-label">Phone</div><input type="text" name="phone"></div>
+  <div class="application-question"><div class="application-label">Current company</div><input type="text" name="org"></div>
+  <div class="application-question"><div class="application-label">LinkedIn URL</div><input type="text" name="urls[LinkedIn]"></div>
+  <div class="application-question"><div class="application-label">GitHub URL</div><input type="text" name="urls[GitHub]"></div>
+  <div class="application-question"><div class="application-label">Portfolio URL</div><input type="text" name="urls[Portfolio]"></div>
+  <div class="application-question"><div class="application-label">Additional information</div><textarea name="comments"></textarea></div>
+  <div class="application-question"><div class="application-label">Veteran status</div>
+    <select name="eeo[veteran]"><option value="">Select…</option><option>I am not a protected veteran</option></select></div>
+  <input type="hidden" name="source" value="">
+  <input type="text" name="disabled_field" disabled>
+  <div class="h-captcha" data-size="invisible" data-sitekey="abc"></div>
+  <button type="button" id="btn-submit">Submit application</button>
+</form>
+</body></html>

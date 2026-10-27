@@ -66,8 +66,11 @@
       const t = by.split(/\s+/).map((id) => textOf(document.getElementById(id))).join(' ').trim();
       if (t) return t;
     }
+    // Borrow text from a wrapper only while that wrapper holds just this one
+    // field; otherwise it's another field's label and must not be guessed.
     let node = el.parentElement;
     for (let i = 0; i < 3 && node; i++, node = node.parentElement) {
+      if (node.querySelectorAll('input:not([type="hidden"]), select, textarea').length > 1) break;
       const lab = node.querySelector('label, legend');
       if (lab && !lab.contains(el)) return textOf(lab);
       if (el.tagName !== 'SELECT') {

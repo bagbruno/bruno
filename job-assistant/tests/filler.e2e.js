@@ -14,6 +14,8 @@ const fixture = (name) => fs.readFileSync(path.join(__dirname, 'fixtures', name)
 const PROFILE = {
   firstName: 'Bruno', lastName: 'Example', email: 'bruno@example.com', phone: '555-0100',
   linkedinUrl: 'https://www.linkedin.com/in/bruno-example', city: 'Boston', country: 'United States',
+  fullName: 'Bruno Example', currentCompany: 'Garratt-Callahan', githubUrl: 'https://github.com/bruno',
+  websiteUrl: 'https://bruno.example', addressLine1: '1 Main St', state: 'Florida', postalCode: '33602',
 };
 const RESUME = { label: 'PM — Oct 2026', fileName: 'bruno-resume.pdf', type: 'application/pdf', dataUrl: 'data:application/pdf;base64,JVBERi0xLjQK' };
 
@@ -106,6 +108,103 @@ const run = (page) => page.evaluate((p) => globalThis.JobAssistFiller.run(p), { 
     assert.equal(r.ok, false);
     assert.match(r.reasons.join(' '), /LinkedIn/);
     assert.equal(await page.$eval('#fn', (el) => el.value), '');
+  });
+
+  await check('Lever-style form: full name, links, hidden resume input, invisible hCaptcha', async (page) => {
+    await load(page, 'https://jobs.lever.co/acme/123/apply', fixture('lever.html'));
+    const r = await run(page);
+    assert.equal(r.ok, true, JSON.stringify(r));
+    const v = (n) => page.$eval(`[name="${n}"]`, (el) => el.value);
+    assert.equal(await v('name'), 'Bruno Example');
+    assert.equal(await v('email'), 'bruno@example.com');
+    assert.equal(await v('phone'), '555-0100');
+    assert.equal(await v('org'), 'Garratt-Callahan');
+    assert.equal(await v('urls[LinkedIn]'), PROFILE.linkedinUrl);
+    assert.equal(await v('urls[GitHub]'), PROFILE.githubUrl);
+    assert.equal(await v('urls[Portfolio]'), PROFILE.websiteUrl);
+    assert.equal(await v('comments'), '');
+    assert.equal(await v('eeo[veteran]'), '');
+    assert.equal(await v('source'), '', 'hidden field untouched');
+    assert.equal(await v('disabled_field'), '', 'disabled field untouched');
+    assert.equal(await page.$eval('#resume-upload-input', (el) => el.files.length), 1);
+    await page.click('#btn-submit');
+    assert.equal(page.url(), 'https://jobs.lever.co/acme/123/apply');
+  });
+
+  await check('Workday-style form: aria-labelledby labels, state select, questions left alone', async (page) => {
+    await load(page, 'https://acme.wd1.myworkdayjobs.com/en-US/External/job/apply', fixture('workday.html'));
+    const r = await run(page);
+    assert.equal(r.ok, true, JSON.stringify(r));
+    const v = (sel) => page.$eval(sel, (el) => el.value);
+    assert.equal(await v('[data-automation-id="legalNameSection_firstName"]'), 'Bruno');
+    assert.equal(await v('[data-automation-id="legalNameSection_lastName"]'), 'Example');
+    assert.equal(await v('[data-automation-id="addressSection_addressLine1"]'), '1 Main St');
+    assert.equal(await v('[data-automation-id="addressSection_city"]'), 'Boston');
+    assert.equal(await v('#st'), 'FL');
+    assert.equal(await v('[data-automation-id="addressSection_postalCode"]'), '33602');
+    assert.equal(await v('[data-automation-id="phone-number"]'), '555-0100');
+    assert.equal(await v('#ptype'), '', 'phone device type is a choice for Bruno');
+    assert.equal(await v('[data-automation-id="sourcePrompt"]'), '');
+    assert.equal(await v('#prev'), '');
+  });
+
+  await check('React-style controlled inputs register the filled value', async (page) => {
+    await load(page, 'https://jobs.example.com/react', fixture('react.html'));
+    const r = await run(page);
+    assert.equal(r.ok, true);
+    assert.deepEqual(await page.evaluate(() => window.state), { fn: 'Bruno', em: 'bruno@example.com' });
+  });
+
+  await check('edge cases: unmatched option, read-only, placeholder label, unlabelled, hidden password', async (page) => {
+    await load(page, 'https://jobs.example.com/opts', fixture('options.html'));
+    const r = await run(page);
+    assert.equal(r.ok, true, JSON.stringify(r));
+    assert.equal(await page.$eval('#c', (el) => el.value), '', 'no guessing USA vs United States');
+    assert.ok(r.needsBruno.some((n) => /No option matches/.test(n.reason)));
+    assert.equal(await page.$eval('#ro', (el) => el.value), '', 'read-only untouched');
+    assert.equal(await page.$eval('#ph', (el) => el.value), '555-0100');
+    assert.equal(await page.$eval('#nolabel', (el) => el.value), '');
+  });
+
+  await check('form embedded from another site is reported as unsupported', async (page) => {
+    await load(page, 'https://www.acme.com/careers/ae', fixture('embed.html'));
+    const r = await run(page);
+    assert.equal(r.ok, false);
+    assert.match(r.reasons.join(' '), /embedded frame/);
+  });
+
+  await check('form inside shadow DOM: stops safely instead of guessing', async (page) => {
+    await load(page, 'https://jobs.example.com/shadow', fixture('shadow.html'));
+    const r = await run(page);
+    assert.equal(r.ok, false);
+    assert.match(r.reasons.join(' '), /no application form/);
+  });
+
+  await check('400-field form completes quickly and fills only routine fields', async (page) => {
+    const labels = ['First name', 'Email', 'Why this role?', 'Desired salary', 'City', 'Gender', 'Tell us about a deal you lost', 'Phone'];
+    let html = '<!doctype html><html><body><form>';
+    for (let i = 0; i < 400; i++) html += `<label for="f${i}">${labels[i % labels.length]}</label><input id="f${i}">`;
+    html += '</form></body></html>';
+    await load(page, 'https://jobs.example.com/big', html);
+    const t0 = Date.now();
+    const r = await run(page);
+    const ms = Date.now() - t0;
+    assert.equal(r.ok, true);
+    assert.equal(r.filled.length, 200, 'first name, email, city, phone x 50');
+    assert.equal(r.needsBruno.length, 200);
+    assert.ok(ms < 5000, 'took ' + ms + 'ms');
+    console.log('    400-field form filled in ' + ms + 'ms');
+  });
+
+  await check('running Fill twice does not duplicate uploads or overwrite', async (page) => {
+    await load(page, 'https://jobs.example.com/apply', fixture('application.html'));
+    await run(page);
+    await page.fill('#fn', 'Bruno-edited');
+    const r2 = await run(page);
+    assert.equal(r2.ok, true);
+    assert.equal(await page.$eval('#fn', (el) => el.value), 'Bruno-edited');
+    assert.deepEqual(r2.filled, []);
+    assert.deepEqual(r2.uploaded, []);
   });
 
   await browser.close();
