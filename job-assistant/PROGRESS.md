@@ -2,18 +2,15 @@
 
 Working notes so work can resume after an interruption.
 
-## Done
+## Done (v0.2.0)
 - [x] Reviewed reference repos (see "Reference review" in README)
-- [x] `src/shared/discovery.js`: Greenhouse / Lever / Ashby / Workday feeds, salary parsing (unknown when missing), title / location / salary filters, 0–100 score, duplicate + already-applied detection, closed-posting detection, retries, search links for LinkedIn / Indeed / Glassdoor — `tests/discovery.test.js`
-- [x] `src/shared/tailor.js`: .docx read/write, headline/summary/skills tailoring, fabrication guard — `tests/tailor.test.js`
-- [x] `src/shared/ai.js`: optional Claude API client (Bruno's key)
-- [x] `src/shared/contacts.js`: recruiter / manager / teammate searches, message drafts, duplicate contacts — `tests/contacts.test.js`
-- [x] rules.js: saved screening answers, closed postings, confirmation pages, tab-title parsing
-- [x] filler.js: fills saved answers, reports closed postings, detects confirmation after Bruno's Submit
-- [x] background.js: optional daily search, confirmation-page check after submit
+- [x] Job discovery (Greenhouse / Lever / Ashby / Workday), filters, scoring, duplicates, closed postings, retries, daily search — `src/shared/discovery.js`
+- [x] Resume tailoring (.docx) with fabrication guard and optional Claude API — `src/shared/tailor.js`, `src/shared/ai.js`
+- [x] People to contact and message drafts, duplicate contacts — `src/shared/contacts.js`
+- [x] Saved screening answers, closed-posting and confirmation-page detection — `rules.js`, `filler.js`, `background.js`
+- [x] Side panel: three search settings, results, tailoring, answers, API key, job boards, people
+- [x] Tests: `npm run test:all` (unit, filler pages, extension, full workflow) — all passing
 
-## Remaining
-- [ ] manifest: alarms permission + job-board/API host permissions
-- [ ] panel: search card (location, min salary, positions), Find jobs, results with score/salary, tailor resume, saved answers, API key, sources, people/contacts
-- [ ] extension e2e: discovery → tailor → fill (with answers) → confirmation; contacts dedupe; narrow-width layout
-- [ ] README update, full test run, commit
+## Possible next steps
+- Confirm the default company job boards respond from a normal internet connection (couldn't be reached from the build environment)
+- AI-written outreach messages (templates are used today)

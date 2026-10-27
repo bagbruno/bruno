@@ -282,10 +282,12 @@
     const title = matchTitle(job.title, parsePositions(settings.positions));
     const loc = matchLocation(job, settings.location);
     const pay = matchSalary(job, settings.minSalary);
-    const kw = job.description && resumeText ? keywordMatch(job.description, resumeText) : null;
+    const found = job.description && resumeText ? keywordMatch(job.description, resumeText) : null;
+    // Too few repeated terms to compare fairly: neutral points, said plainly.
+    const kw = found && found.keywords.length >= 5 ? found : null;
     const kwPoints = kw ? Math.round(kw.ratio * 25) : 12;
     const pass = title.pass && loc.pass && pay.pass;
-    const reasons = [title.why, loc.why, pay.why, kw ? Math.round(kw.ratio * 100) + '% of key terms are on your resume' : 'no description to compare'];
+    const reasons = [title.why, loc.why, pay.why, kw ? Math.round(kw.ratio * 100) + '% of key terms are on your resume' : !resumeText ? 'add a Word resume to compare' : 'too little description to compare'];
     return {
       pass,
       score: title.points + loc.points + pay.points + kwPoints,

@@ -32,7 +32,21 @@
     <section id="tab-jobs" class="tab">
       <div id="active-job" class="card" hidden></div>
 
-      <details class="card" open>
+      <div class="card" id="search-card">
+        <h2>Job search</h2>
+        <label>Location <input id="s-location" placeholder="Remote, Nationwide, or Tampa, FL" autocomplete="off"></label>
+        <label>Minimum salary (per year) <input id="s-salary" inputmode="numeric" placeholder="e.g. 80000" autocomplete="off"></label>
+        <label>Job positions <input id="s-positions" placeholder="Account Executive, Sales Executive" autocomplete="off"></label>
+        <div class="row"><button id="find-jobs" type="button" class="primary">Find jobs</button></div>
+        <p id="find-status" class="hint" role="status"></p>
+        <p class="hint">Also search
+          <a id="link-linkedin" target="_blank" rel="noopener">LinkedIn</a> ·
+          <a id="link-indeed" target="_blank" rel="noopener">Indeed</a> ·
+          <a id="link-glassdoor" target="_blank" rel="noopener">Glassdoor</a>
+          with these settings, then use “Add the job in my current tab”.</p>
+      </div>
+
+      <details class="card">
         <summary>Add a job you chose</summary>
         <button id="add-current" type="button">Add the job in my current tab</button>
         <form id="add-job-form">
@@ -50,8 +64,9 @@
       <div class="filters">
         <label>Show
           <select id="job-filter">
-            <option value="open">Not finished</option>
+            <option value="open">Not finished (best match first)</option>
             <option value="all">All</option>
+            <option value="closed">Posting closed</option>
             <option value="manual_action_required">Manual action required</option>
             <option value="submitted">Submitted</option>
           </select>
@@ -64,13 +79,14 @@
     <section id="tab-profile" class="tab" hidden>
       <div class="card">
         <h2>Verified profile</h2>
-        <p class="hint">Only these routine fields are ever filled. Sensitive questions (demographics, salary, work authorization, disability, veteran status, legal attestations, and similar) are always left for you.</p>
+        <p class="hint">Only these routine fields are ever filled. Screening questions use your saved answers below; questions about gender, race, disability, veteran status, criminal history and legal attestations are always left for you.</p>
         <form id="profile-form"></form>
         <p id="verify-status"></p>
         <button id="verify-btn" type="button">I've checked these details are correct</button>
       </div>
       <div class="card">
         <h2>Resume versions</h2>
+        <p class="hint">Upload your resume as a Word (.docx) file so it can be tailored for each job. Your main resume is the one tailored versions are made from.</p>
         <form id="resume-form">
           <label>Version name <input name="label" required placeholder="e.g. Product — Oct 2026"></label>
           <label>File <input name="file" type="file" required accept=".pdf,.doc,.docx,.txt,.rtf"></label>
@@ -78,6 +94,29 @@
         </form>
         <ul id="resume-list" class="list"></ul>
       </div>
+
+      <div class="card">
+        <h2>Screening answers</h2>
+        <p class="hint">Answer these once. They're used, word for word, only when an application asks the same question, and are outlined for you to check. Questions about gender, race, veteran or disability status, criminal history, and signatures are always left for you.</p>
+        <form id="answers-form"></form>
+      </div>
+      <div class="card">
+        <h2>AI resume tailoring (optional)</h2>
+        <p class="hint">With your own Claude API key, each tailored resume is rewritten for the job, then checked so it never adds anything that isn't on your resume. Without a key, your skills are reordered to match each job. The key is stored only in this browser.</p>
+        <label>Claude API key <input id="api-key" type="password" autocomplete="off" placeholder="sk-ant-…"></label>
+        <div class="row"><button id="save-key" type="button">Save key</button><button id="clear-key" type="button">Remove key</button></div>
+      </div>
+      <details class="card">
+        <summary>Job boards searched</summary>
+        <p class="hint">“Find jobs” checks these company job boards. Add any company that uses Greenhouse, Lever, Ashby or Workday by pasting a link to its careers page or one of its jobs.</p>
+        <form id="source-form" class="row">
+          <input name="url" type="url" required placeholder="https://jobs.lever.co/company" style="flex:1;min-width:0">
+          <input name="company" placeholder="Company name" style="flex:1;min-width:0">
+          <button type="submit">Add</button>
+        </form>
+        <ul id="source-list" class="list"></ul>
+        <label class="row"><input id="auto-discover" type="checkbox" style="width:auto"> Check for new jobs once a day</label>
+      </details>
     </section>
 
     <!-- OUTREACH -->
@@ -120,9 +159,12 @@
         <h2>How this assistant works</h2>
         <ul>
           <li>Runs only in your own signed-in Chrome. It uses no proxies, no other accounts, no copied cookies, and nothing that hides that you are using an extension.</li>
-          <li>Works only on jobs you add or import yourself, one application at a time.</li>
+          <li>Finds jobs on company job boards (Greenhouse, Lever, Ashby, Workday) through their public job listings. It does not collect listings from LinkedIn, Indeed or Glassdoor; it opens a search there for you instead.</li>
+          <li>Works on one application at a time, and only when you open it.</li>
+          <li>Tailors your resume by rewording and reordering what's already on it. It never adds skills, numbers or experience you don't have.</li>
           <li>Fills only routine fields from your verified profile, only when you click <em>Fill routine fields</em>, and never overwrites what you typed.</li>
-          <li>Leaves every sensitive, unusual, or unclear question for you and outlines it in orange or red.</li>
+          <li>Answers common screening questions only with the wording you saved, and outlines them for you to check.</li>
+          <li>Leaves every other sensitive, unusual, or unclear question for you and outlines it in orange or red.</li>
           <li>Never clicks Submit. You make the final Submit click on every application.</li>
           <li>Queues LinkedIn connection requests and messages for your approval. Even after approval you send them yourself.</li>
           <li>Stops right away and labels the job <strong>Manual action required</strong> if it sees a CAPTCHA, a security or verification check, an account warning, a sign-in prompt, or a page it doesn't recognise. It does not try to get around any of these.</li>
@@ -140,6 +182,10 @@
 
   <script src="../shared/rules.js"></script>
   <script src="../shared/store.js"></script>
+  <script src="../shared/discovery.js"></script>
+  <script src="../shared/tailor.js"></script>
+  <script src="../shared/ai.js"></script>
+  <script src="../shared/contacts.js"></script>
   <script src="panel.js"></script>
 </body>
 </html>

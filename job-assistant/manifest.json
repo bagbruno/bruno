@@ -2,12 +2,35 @@
   "manifest_version": 3,
   "name": "Job Application Assistant (user-controlled)",
   "short_name": "Job Assistant",
-  "version": "0.1.0",
-  "description": "Helps Bruno fill routine fields on job applications he chose, in his own Chrome session. Never submits, never sends outreach, stops at anything unusual.",
+  "version": "0.2.0",
+  "description": "Finds jobs that match Bruno's search, tailors his resume, fills routine fields on applications he opens, and prepares outreach for his approval. Never submits or sends anything itself.",
   "minimum_chrome_version": "116",
-  "permissions": ["storage", "unlimitedStorage", "sidePanel", "scripting", "tabs", "clipboardWrite"],
-  "optional_host_permissions": ["https://*/*", "http://*/*"],
-  "background": { "service_worker": "src/background.js" },
-  "side_panel": { "default_path": "src/panel/panel.html" },
-  "action": { "default_title": "Open Job Assistant" }
+  "permissions": [
+    "storage",
+    "unlimitedStorage",
+    "sidePanel",
+    "scripting",
+    "tabs",
+    "clipboardWrite",
+    "alarms"
+  ],
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ],
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "side_panel": {
+    "default_path": "src/panel/panel.html"
+  },
+  "action": {
+    "default_title": "Open Job Assistant"
+  },
+  "host_permissions": [
+    "https://boards-api.greenhouse.io/*",
+    "https://api.lever.co/*",
+    "https://api.ashbyhq.com/*",
+    "https://api.anthropic.com/*"
+  ]
 }

@@ -57,6 +57,8 @@ function extensionCopy() {
   panel.on('pageerror', (e) => errors.push('panel: ' + e.message));
   panel.on('console', (m) => m.type() === 'error' && errors.push('panel console: ' + m.text()));
   await panel.goto(`chrome-extension://${id}/src/panel/panel.html`);
+  // "Add a job you chose" is collapsed under the job search card.
+  await panel.click('summary:has-text("Add a job you chose")');
 
   const steps = [];
   const step = async (name, fn) => {

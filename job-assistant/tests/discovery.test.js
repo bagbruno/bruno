@@ -190,3 +190,9 @@ test('search links carry the three settings', () => {
   assert.equal(new URL(tampa.linkedin).searchParams.get('location'), 'Tampa, FL');
   assert.equal(new URL(tampa.linkedin).searchParams.get('f_SB2'), null);
 });
+
+test('relevance: short descriptions are neutral, not 0%', () => {
+  const ev = D.evaluate({ title: 'Account Executive', location: 'Remote', remote: true, description: 'Sell things.' }, SETTINGS, RESUME);
+  assert.ok(ev.reasons.includes('too little description to compare'));
+  assert.equal(ev.score, 35 + 20 + 10 + 12);
+});

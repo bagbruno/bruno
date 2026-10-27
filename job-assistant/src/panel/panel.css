@@ -66,3 +66,11 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .prose ul { padding-left: 18px; }
 #toast { position: fixed; left: 12px; right: 12px; bottom: 12px; background: var(--fg); color: var(--bg); padding: 8px 12px; border-radius: 8px; }
 code { font-size: 12px; }
+.chip.score { color: var(--accent); font-weight: 600; }
+.people { margin-top: 6px; border-top: 1px solid var(--line); padding-top: 6px; }
+.people summary { font-weight: 600; font-size: 12px; }
+.person-role { margin: 6px 0; }
+.person-role .title { font-size: 12px; }
+a { color: var(--accent); }
+.list > li, .card { overflow-wrap: anywhere; }
+input, select, textarea { max-width: 100%; }
