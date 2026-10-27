@@ -103,7 +103,7 @@ function extensionCopy() {
 
   await step('profile, resume version and job setup', async () => {
     await tab('profile');
-    const values = { firstName: 'Bruno', lastName: 'Garcia', email: 'bruno.jobs@example.com', phone: '832-890-0003', linkedinUrl: 'https://www.linkedin.com/in/bruno-a-garcia', city: 'Tampa', country: 'United States' };
+    const values = { firstName: 'Bruno', lastName: 'Garcia', email: 'bruno.jobs@example.com', phone: '555-0100', linkedinUrl: 'https://www.linkedin.com/in/alex-sample', city: 'Tampa', country: 'United States' };
     for (const [k, v] of Object.entries(values)) await panel.fill(`#profile-form [name=${k}]`, v);
     await panel.waitForTimeout(600);
     await panel.click('#verify-btn');

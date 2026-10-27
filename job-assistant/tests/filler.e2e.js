@@ -14,7 +14,7 @@ const fixture = (name) => fs.readFileSync(path.join(__dirname, 'fixtures', name)
 const PROFILE = {
   firstName: 'Bruno', lastName: 'Example', email: 'bruno@example.com', phone: '555-0100',
   linkedinUrl: 'https://www.linkedin.com/in/bruno-example', city: 'Boston', country: 'United States',
-  fullName: 'Bruno Example', currentCompany: 'Garratt-Callahan', githubUrl: 'https://github.com/bruno',
+  fullName: 'Bruno Example', currentCompany: 'Sample Medical Co', githubUrl: 'https://github.com/bruno',
   websiteUrl: 'https://bruno.example', addressLine1: '1 Main St', state: 'Florida', postalCode: '33602',
 };
 const RESUME = { label: 'PM — Oct 2026', fileName: 'bruno-resume.pdf', type: 'application/pdf', dataUrl: 'data:application/pdf;base64,JVBERi0xLjQK' };
@@ -118,7 +118,7 @@ const run = (page) => page.evaluate((p) => globalThis.JobAssistFiller.run(p), { 
     assert.equal(await v('name'), 'Bruno Example');
     assert.equal(await v('email'), 'bruno@example.com');
     assert.equal(await v('phone'), '555-0100');
-    assert.equal(await v('org'), 'Garratt-Callahan');
+    assert.equal(await v('org'), 'Sample Medical Co');
     assert.equal(await v('urls[LinkedIn]'), PROFILE.linkedinUrl);
     assert.equal(await v('urls[GitHub]'), PROFILE.githubUrl);
     assert.equal(await v('urls[Portfolio]'), PROFILE.websiteUrl);
