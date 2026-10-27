@@ -724,6 +724,69 @@
     toast('Copied ' + label + '.');
   }
 
+  /**
+   * Load a setup file: { kind: 'job-assistant-setup', profile, answers,
+   * search, resumes: [{label, fileName, dataUrl, main}] }. Only known fields
+   * are taken. The profile is left unverified so Bruno checks it first.
+   */
+  async function loadSetup(file) {
+    let data;
+    try {
+      data = JSON.parse(await file.text());
+    } catch (_) {
+      return toast('That file isn’t a readable setup file.');
+    }
+    if (!data || data.kind !== 'job-assistant-setup') return toast('That file isn’t a Job Assistant setup file.');
+    const str = (v) => (typeof v === 'string' || typeof v === 'number' ? String(v).trim() : '');
+    const loaded = [];
+    const pick = (src, keys) => {
+      const out = {};
+      for (const k of keys) if (src && str(src[k])) out[k] = str(src[k]);
+      return out;
+    };
+    const profile = pick(data.profile, R.PROFILE_KEYS.map((k) => k.key));
+    if (Object.keys(profile).length) {
+      await S.set('profile', { values: Object.assign({}, state.profile.values, profile), verifiedAt: null });
+      loaded.push(Object.keys(profile).length + ' profile fields');
+    }
+    const answers = pick(data.answers, R.ANSWER_FIELDS.map((a) => a.key));
+    if (Object.keys(answers).length) {
+      await S.set('answers', Object.assign({}, state.answers, answers));
+      loaded.push(Object.keys(answers).length + ' screening answers');
+    }
+    const search = pick(data.search, ['location', 'minSalary', 'positions']);
+    if (Object.keys(search).length) {
+      await S.set('search', Object.assign({}, state.search, search));
+      loaded.push('search settings');
+    }
+    const resumes = await S.get('resumes');
+    const settings = await S.get('settings');
+    for (const r of Array.isArray(data.resumes) ? data.resumes : []) {
+      if (!r || typeof r.dataUrl !== 'string' || !/^data:[\w./+-]+;base64,/.test(r.dataUrl) || !str(r.fileName)) continue;
+      const bytes = dataUrlBytes(r.dataUrl);
+      if (bytes.length > MAX_RESUME_BYTES) continue;
+      if (resumes.some((x) => x.fileName === r.fileName && x.size === bytes.length && !x.forJobId)) continue;
+      const isDocx = /\.docx$/i.test(r.fileName);
+      let text = '';
+      if (isDocx) {
+        try {
+          text = T.docxText(await T.readDocx(bytes));
+        } catch (err) {
+          toast(r.fileName + ' could not be read: ' + err.message);
+          continue;
+        }
+      }
+      const version = { id: S.uid(), label: str(r.label) || r.fileName, fileName: str(r.fileName), type: isDocx ? DOCX : 'application/pdf', size: bytes.length, dataUrl: r.dataUrl, text, addedAt: new Date().toISOString() };
+      resumes.push(version);
+      if (r.main || !settings.mainResumeId) settings.mainResumeId = version.id;
+      loaded.push('resume “' + version.label + '”');
+    }
+    await S.set('resumes', resumes);
+    await S.set('settings', settings);
+    await S.addLog({ action: 'Setup file loaded', details: loaded.join(', ') || 'nothing new' });
+    toast(loaded.length ? 'Loaded ' + loaded.join(', ') + '. Please check your profile and click “I’ve checked these details are correct”.' : 'Nothing new in that file.');
+  }
+
   function readAsDataUrl(file) {
     return new Promise((resolve, reject) => {
       const fr = new FileReader();
@@ -846,6 +909,11 @@
     });
 
     $('#job-filter').addEventListener('change', renderJobs);
+    $('#setup-file').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      e.target.value = '';
+      if (file) await loadSetup(file);
+    });
 
     let searchTimer = null;
     for (const [sel, key] of [['#s-location', 'location'], ['#s-salary', 'minSalary'], ['#s-positions', 'positions']]) {

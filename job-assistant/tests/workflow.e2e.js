@@ -343,6 +343,39 @@ function extensionCopy() {
     assert.equal(await sw.evaluate(() => chrome.alarms.get('daily-discovery')), undefined, 'alarm removed');
   });
 
+  await step('setup file loads profile, answers, search and resume in one go', async () => {
+    const setup = {
+      kind: 'job-assistant-setup',
+      profile: { firstName: 'Sam', email: 'sam.jobs@example.com', notAField: 'ignored' },
+      answers: { relocate: 'No', startDate: 'Two weeks', bogus: 'x' },
+      search: { location: 'Tampa, FL', minSalary: '90000', positions: 'Account Executive' },
+      resumes: [{ label: 'Setup resume', fileName: 'setup-resume.docx', main: true, dataUrl: 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + fs.readFileSync(path.join(__dirname, 'fixtures', 'resume-sample.docx')).toString('base64') }],
+    };
+    await tab('profile');
+    await panel.setInputFiles('#setup-file', { name: 'setup.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(setup)) });
+    await panel.waitForTimeout(800);
+    const profile = await storage('profile');
+    assert.equal(profile.values.firstName, 'Sam');
+    assert.equal(profile.values.lastName, 'Sample', 'existing fields kept');
+    assert.equal(profile.values.notAField, undefined);
+    assert.equal(profile.verifiedAt, null, 'must be re-checked');
+    const answers = await storage('answers');
+    assert.equal(answers.relocate, 'No');
+    assert.equal(answers.workAuthorization, 'Yes', 'existing answers kept');
+    assert.equal(answers.bogus, undefined);
+    assert.equal((await storage('search')).location, 'Tampa, FL');
+    const settings = await storage('settings');
+    const main = (await storage('resumes')).find((r) => r.id === settings.mainResumeId);
+    assert.equal(main.fileName, 'setup-resume.docx');
+    assert.match(main.text, /Full-cycle B2B/);
+    // Loading the same file twice doesn't duplicate the resume.
+    await panel.setInputFiles('#setup-file', { name: 'setup.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(setup)) });
+    await panel.waitForTimeout(800);
+    assert.equal((await storage('resumes')).filter((r) => r.fileName === 'setup-resume.docx').length, 1);
+    await panel.setInputFiles('#setup-file', { name: 'x.json', mimeType: 'application/json', buffer: Buffer.from('{"kind":"other"}') });
+    assert.match(await panel.textContent('#toast'), /isn’t a Job Assistant setup file/);
+  });
+
   await ctx.close();
   server.close();
   fs.rmSync(ext, { recursive: true, force: true });

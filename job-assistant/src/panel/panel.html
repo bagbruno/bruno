@@ -78,6 +78,11 @@
     <!-- PROFILE -->
     <section id="tab-profile" class="tab" hidden>
       <div class="card">
+        <h2>Load setup file</h2>
+        <p class="hint">Fills in your profile, screening answers, search settings and resume from a setup file in one go. Check everything afterwards, then click “I've checked these details are correct”.</p>
+        <label class="file">Setup file (.json) <input id="setup-file" type="file" accept=".json,application/json"></label>
+      </div>
+      <div class="card">
         <h2>Verified profile</h2>
         <p class="hint">Only these routine fields are ever filled. Screening questions use your saved answers below; questions about gender, race, disability, veteran status, criminal history and legal attestations are always left for you.</p>
         <form id="profile-form"></form>
