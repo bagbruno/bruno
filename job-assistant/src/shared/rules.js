@@ -106,6 +106,58 @@
     return { id: 'other', name: host || 'Unknown site', hosts: [], fill: 'review', notice: GENERIC_NOTICE };
   }
 
+  // ---------------------------------------------------------------------------
+  // Automatic submission
+  //
+  // Only on employers' own application pages hosted by these applicant-
+  // tracking systems: public forms the employer publishes for candidates, used
+  // here in Bruno's own browser without hiding anything. Everywhere else the
+  // application is prepared and Bruno submits it himself.
+  // ---------------------------------------------------------------------------
+  const AUTO_SUBMIT_HOSTS = [
+    { host: 'job-boards.greenhouse.io', name: 'Greenhouse' },
+    { host: 'boards.greenhouse.io', name: 'Greenhouse' },
+    { host: 'jobs.lever.co', name: 'Lever' },
+    { host: 'jobs.ashbyhq.com', name: 'Ashby' },
+  ];
+
+  /** @returns {{allowed: boolean, why: string}} */
+  function autoSubmitPolicy(url) {
+    const host = hostOf(url);
+    const hit = AUTO_SUBMIT_HOSTS.find((h) => host === h.host);
+    if (hit) return { allowed: true, why: hit.name + ' application page' };
+    const platform = platformFor(url);
+    if (platform.fill === 'blocked') return { allowed: false, why: platform.name + ' does not allow automated applications; fill and submit by hand' };
+    if (platform.fill === 'consent') return { allowed: false, why: platform.name + ' restricts automated submission; the assistant prepares it and you submit' };
+    if (/myworkdayjobs\.com$/.test(host)) return { allowed: false, why: 'Workday needs your account sign-in; the assistant prepares it and you submit' };
+    return { allowed: false, why: 'Automatic submission isn’t set up for this site; the assistant prepares it and you submit' };
+  }
+
+  // Declarations Bruno can approve once. Any other declaration a form asks him
+  // to accept (arbitration, background-check consent, marketing, etc.) stops
+  // automatic submission when it's required, and is left unticked when it isn't.
+  const DECLARATIONS = [
+    {
+      id: 'privacy',
+      label: 'Acknowledge the employer’s applicant privacy notice / consent to processing my application data',
+      pattern: /\b(privacy (policy|notice|statement)|applicant (privacy|data)|data (processing|protection)|process(ing)? (of )?my (personal )?(data|information))\b/i,
+    },
+    {
+      id: 'accuracy',
+      label: 'Certify that the information in my application is true and complete',
+      pattern: /\b(certify|confirm|attest|acknowledge|declare|affirm)\b.{0,120}\b(true|accurate|complete|correct)\b/i,
+    },
+  ];
+  const OTHER_DECLARATION = /\b(arbitration|background (check|screening)|credit (check|report)|drug|text messages?|sms|marketing|newsletter|job alerts|talent (community|network)|future opportunities)\b/i;
+
+  /** Which approvable declaration a checkbox label is, or null. */
+  function declarationFor(label) {
+    const t = String(label || '');
+    if (OTHER_DECLARATION.test(t)) return null;
+    const d = DECLARATIONS.find((x) => x.pattern.test(t));
+    return d ? d.id : null;
+  }
+
   /** May the assistant fill forms on this platform, given Bruno's consents? */
   function canFill(platform, consents) {
     if (platform.fill === 'blocked') return false;
@@ -272,7 +324,7 @@
   const EXPIRED_TEXT = /\b(no longer (accepting applications|available|open|active)|(job|position|posting|role) (is|has been) (closed|filled|removed)|this job (has )?expired|job not found|page (you('re| are) looking for )?(could not be|can'?t be|was not) found|(error )?404 (error|not found|page)|error 404)\b/i;
 
   // The site's own "application received" page.
-  const CONFIRMATION_TEXT = /\b(thank(s| you) for (applying|your application|your interest)|application (has been |was )?(received|submitted)|we('ve| have) received your application|your application (is|has been) (complete|submitted|on its way))\b/i;
+  const CONFIRMATION_TEXT = /\b(thank(s| you) for (applying|your application|your interest)|application (has been |was )?(received|submitted)|we('ve| have) received your application|your application (is|has been|was) (complete|submitted|on its way|successfully submitted)|application submitted|successfully submitted)\b/i;
 
   function isConfirmation(text) {
     return CONFIRMATION_TEXT.test(String(text || '').replace(/[\u2018\u2019]/g, "'"));
@@ -411,6 +463,10 @@
     CAPTCHA_SELECTORS,
     platformFor,
     canFill,
+    AUTO_SUBMIT_HOSTS,
+    autoSubmitPolicy,
+    DECLARATIONS,
+    declarationFor,
     hostOf,
     classifyField,
     assessPage,

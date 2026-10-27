@@ -63,6 +63,10 @@ async function handle(msg, sender) {
     });
   } else if (msg.type === 'submit-confirmed') {
     await confirmSubmitted(msg.jobId, msg.url);
+  } else if (msg.type === 'auto-submitted') {
+    // The assistant clicked Submit under Bruno's approval. Not "submitted"
+    // until the site confirms; the side panel waits for that.
+    await S.updateJob(msg.jobId, { submitObservedAt: new Date().toISOString(), submittedBy: 'assistant (automatic submission you approved)' });
   } else if (msg.type === 'submit-observed') {
     const jobs = await S.get('jobs');
     const job = jobs.find((j) => j.id === msg.jobId);
@@ -84,7 +88,8 @@ async function confirmSubmitted(jobId, url) {
   const job = jobs.find((j) => j.id === jobId);
   if (!job || job.status === R.STATUS.SUBMITTED) return;
   await S.updateJob(jobId, { status: R.STATUS.SUBMITTED, submittedAt: new Date().toISOString(), confirmedBy: 'the site’s confirmation page' });
-  await S.addLog({ jobId, url, action: 'Submission confirmed by the site', submissionStatus: R.STATUS.SUBMITTED, details: 'Bruno clicked Submit; the site showed an application-received page.' });
+  const who = job.submittedBy || 'Bruno';
+  await S.addLog({ jobId, url, action: 'Submission confirmed by the site', submissionStatus: R.STATUS.SUBMITTED, details: 'Submitted by ' + who + '; the site showed an application-received page.' });
 }
 
 // After Bruno clicks Submit the site usually loads a new "thank you" page,

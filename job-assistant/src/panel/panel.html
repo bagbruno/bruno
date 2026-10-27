@@ -9,7 +9,7 @@
   <header>
     <h1>Job Assistant</h1>
     <p class="disclosure">
-      Assistive tool only. It fills routine fields when you click, never clicks Submit, and never sends messages.
+      It fills applications for you and, only if you approve automatic submission, submits them on Greenhouse, Lever and Ashby pages after checking them. It never sends messages.
       Websites change their rules and layouts; this tool does not guarantee compliance with any platform.
       <strong>You are responsible for every submission and outreach action.</strong>
     </p>
@@ -44,6 +44,15 @@
           <a id="link-indeed" target="_blank" rel="noopener">Indeed</a> ·
           <a id="link-glassdoor" target="_blank" rel="noopener">Glassdoor</a>
           with these settings, then use “Add the job in my current tab”.</p>
+      </div>
+
+      <div class="card" id="autoapply-card">
+        <h2>Auto-apply</h2>
+        <p id="autoapply-status" class="hint"></p>
+        <div class="row">
+          <button id="autoapply-start" type="button" class="primary">Auto-apply</button>
+          <button id="autoapply-stop" type="button" hidden>Stop after this one</button>
+        </div>
       </div>
 
       <details class="card">
@@ -81,6 +90,12 @@
         <h2>Load setup file</h2>
         <p class="hint">Fills in your profile, screening answers, search settings and resume from a setup file in one go. Check everything afterwards, then click “I've checked these details are correct”.</p>
         <label class="file">Setup file (.json) <input id="setup-file" type="file" accept=".json,application/json"></label>
+      </div>
+      <div class="card" id="approval-card">
+        <h2>Automatic submission</h2>
+        <p class="hint">When approved, Auto-apply submits applications for you on company application pages hosted by Greenhouse, Lever and Ashby, using exactly the details below. Before each submission it checks that the page is for the right job, the right resume is attached, every required question has an approved answer, nothing conflicts with your profile, and only the declarations you tick below are accepted. If anything fails, that application is left for you. Indeed, Glassdoor, Workday and other sites are prepared but never submitted automatically; LinkedIn is always by hand. Changing any detail cancels the approval until you approve again.</p>
+        <div id="approval-summary"></div>
+        <div id="approval-actions" class="row"></div>
       </div>
       <div class="card">
         <h2>Verified profile</h2>
@@ -170,7 +185,7 @@
           <li>Fills only routine fields from your verified profile, only when you click <em>Fill routine fields</em>, and never overwrites what you typed.</li>
           <li>Answers common screening questions only with the wording you saved, and outlines them for you to check.</li>
           <li>Leaves every other sensitive, unusual, or unclear question for you and outlines it in orange or red.</li>
-          <li>Never clicks Submit. You make the final Submit click on every application.</li>
+          <li>Clicks Submit only if you've approved automatic submission, only on company application pages hosted by Greenhouse, Lever or Ashby, and only when every pre-submit check passes. Everywhere else you make the final Submit click. A job counts as submitted only when the site confirms it.</li>
           <li>Queues LinkedIn connection requests and messages for your approval. Even after approval you send them yourself.</li>
           <li>Stops right away and labels the job <strong>Manual action required</strong> if it sees a CAPTCHA, a security or verification check, an account warning, a sign-in prompt, or a page it doesn't recognise. It does not try to get around any of these.</li>
           <li>Keeps an activity log of every job, resume version, field filled, document attached, and submission status.</li>

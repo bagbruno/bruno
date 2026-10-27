@@ -121,6 +121,8 @@
     renderResumes();
     renderAnswers();
     renderSettings();
+    renderApproval();
+    renderAutoApply();
     renderOutreach();
     renderLog();
   }
@@ -504,6 +506,268 @@
   // ---------------------------------------------------------------------------
   // Finding jobs
   // ---------------------------------------------------------------------------
+
+  // ---------------------------------------------------------------------------
+  // Automatic submission: approval
+  // ---------------------------------------------------------------------------
+
+  const AUTO_MIN_SCORE = 60; // only well-matched jobs are submitted automatically
+  const AUTO_DAILY_CAP = 25;
+  const AUTO_PACE_MS = 20000; // fixed gap between submissions, out of courtesy to the sites
+  const AUTO_CONFIRM_MS = 45000;
+  let running = false;
+  let stopRequested = false;
+  let lastRunSummary = '';
+
+  // Everything an approval covers. Any change means Bruno approves again.
+  function approvalFingerprint() {
+    const main = mainResume();
+    const text = JSON.stringify([state.profile.values, state.answers, main ? [main.id, main.fileName, main.size] : null, state.profile.verifiedAt]);
+    let h = 5381;
+    for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) | 0;
+    return String(h >>> 0);
+  }
+
+  function approval() {
+    const a = state.settings.autoApproval;
+    return a && state.profile.verifiedAt && a.fingerprint === approvalFingerprint() ? a : null;
+  }
+
+  const pendingDeclarations = new Set();
+
+  function renderApproval() {
+    const a = state.settings.autoApproval;
+    const valid = approval();
+    if (a && !pendingDeclarations.size) for (const d of a.declarations || []) pendingDeclarations.add(d);
+    const main = mainResume();
+    const rows = [
+      ...R.PROFILE_KEYS.filter(({ key }) => state.profile.values[key]).map(({ key, label }) => [label, state.profile.values[key]]),
+      ...R.ANSWER_FIELDS.filter((x) => state.answers[x.key]).map((x) => [x.label, state.answers[x.key]]),
+      ['Main resume (tailored per job)', main ? main.fileName : '— none —'],
+    ];
+    $('#approval-summary').replaceChildren(
+      h('ul', { class: 'meta' }, rows.map(([k, v]) => h('li', {}, k + ': ' + v))),
+      h('div', { class: 'title' }, 'Declarations it may accept for you'),
+      ...R.DECLARATIONS.map((d) =>
+        h('label', { class: 'row' },
+          h('input', { type: 'checkbox', style: 'width:auto', checked: pendingDeclarations.has(d.id), onchange: (e) => (e.target.checked ? pendingDeclarations.add(d.id) : pendingDeclarations.delete(d.id)) }),
+          d.label)
+      ),
+      h('p', { class: valid ? 'hint' : 'alert warn' },
+        valid ? 'Approved on ' + new Date(valid.at).toLocaleString() + '.'
+          : !state.profile.verifiedAt ? 'Verify your profile above first.'
+          : a ? 'Your details changed since you approved. Review them and approve again.'
+          : 'Not approved. Auto-apply is off.')
+    );
+    $('#approval-actions').replaceChildren(
+      confirmButton(valid ? 'Approve again' : 'Approve automatic submission', 'Confirm: submit applications for me with these details', approve, 'primary'),
+      a ? h('button', { type: 'button', onclick: revokeApproval }, 'Turn off automatic submission') : null
+    );
+  }
+
+  async function approve() {
+    if (!state.profile.verifiedAt) return toast('Verify your profile first.');
+    if (!mainResume()) return toast('Add your resume first.');
+    const required = ['firstName', 'lastName', 'email', 'phone'].filter((k) => !state.profile.values[k]);
+    if (required.length) return toast('Add these to your profile first: ' + required.join(', '));
+    const autoApproval = { at: new Date().toISOString(), fingerprint: approvalFingerprint(), declarations: [...pendingDeclarations] };
+    await S.set('settings', Object.assign({}, state.settings, { autoApproval }));
+    await S.addLog({
+      action: 'Bruno approved automatic submission',
+      details: 'Profile, ' + Object.keys(state.answers).length + ' screening answers, resume “' + mainResume().fileName + '”; declarations: ' + (autoApproval.declarations.join(', ') || 'none'),
+    });
+    toast('Automatic submission approved.');
+  }
+
+  async function revokeApproval() {
+    stopRequested = true;
+    await S.set('settings', Object.assign({}, state.settings, { autoApproval: null }));
+    await S.addLog({ action: 'Bruno turned off automatic submission' });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Automatic submission: the queue
+  // ---------------------------------------------------------------------------
+
+  function autoEligible() {
+    return state.jobs.filter((j) => j.status === ST.SELECTED && (j.score || 0) >= AUTO_MIN_SCORE && R.autoSubmitPolicy(j.applyUrl || j.url).allowed);
+  }
+
+  function submittedToday() {
+    const day = new Date().toDateString();
+    return state.jobs.filter((j) => j.submission && new Date(j.submission.at).toDateString() === day).length;
+  }
+
+  function renderAutoApply() {
+    const eligible = autoEligible();
+    const manual = state.jobs.filter((j) => j.status === ST.SELECTED && !R.autoSubmitPolicy(j.applyUrl || j.url).allowed).length;
+    const left = Math.max(0, AUTO_DAILY_CAP - submittedToday());
+    $('#autoapply-start').textContent = 'Auto-apply to ' + Math.min(eligible.length, left) + ' job' + (Math.min(eligible.length, left) === 1 ? '' : 's');
+    $('#autoapply-start').disabled = running || busy || !approval() || !eligible.length || !left;
+    $('#autoapply-stop').hidden = !running;
+    if (running) return;
+    $('#autoapply-status').textContent = (lastRunSummary ? 'Done: ' + lastRunSummary + '. ' : '') + (!approval()
+      ? 'Approve automatic submission in the Profile tab to turn this on.'
+      : eligible.length + ' matching job(s) on Greenhouse, Lever or Ashby can be submitted automatically (match ' + AUTO_MIN_SCORE + '+). ' +
+        (manual ? manual + ' other job(s) need you to submit. ' : '') + submittedToday() + ' of ' + AUTO_DAILY_CAP + ' submitted today.');
+  }
+
+  function waitForTab(tabId, ms) {
+    return new Promise((resolve) => {
+      const end = Date.now() + ms;
+      const tick = async () => {
+        try {
+          const t = await chrome.tabs.get(tabId);
+          if (t.status === 'complete') return resolve(t);
+        } catch (_) {
+          return resolve(null);
+        }
+        if (Date.now() > end) return resolve(null);
+        setTimeout(tick, 300);
+      };
+      tick();
+    });
+  }
+
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  async function autoApply() {
+    if (running) return;
+    const a = approval();
+    if (!a) return toast('Approve automatic submission in the Profile tab first.');
+    if (state.session.paused) return toast('Paused — resolve the manual action first.');
+    if (activeJob() && state.session.activeTabId != null && !FINISHED.includes(activeJob().status)) return toast('Close out the open application first.');
+    const queue = autoEligible().slice(0, Math.max(0, AUTO_DAILY_CAP - submittedToday()));
+    // Chrome asks once for the sites in this queue (must be straight from the click).
+    const origins = [...new Set(queue.map((j) => new URL(j.applyUrl || j.url).origin + '/*'))];
+    if (!(await chrome.permissions.request({ origins }))) return toast('Chrome permission for the application sites is needed.');
+    running = true;
+    stopRequested = false;
+    renderAutoApply();
+    const counts = { submitted: 0, needsYou: 0, closed: 0, unconfirmed: 0 };
+    await S.addLog({ action: 'Auto-apply started for ' + queue.length + ' job(s)' });
+    try {
+      for (let i = 0; i < queue.length; i++) {
+        if (stopRequested) break;
+        $('#autoapply-status').textContent = 'Applying ' + (i + 1) + ' of ' + queue.length + ': ' + jobName(queue[i]) + '…';
+        const result = await applyOne(queue[i].id, a);
+        counts[result] = (counts[result] || 0) + 1;
+        if (result === 'paused' || !approval()) break;
+        if (i < queue.length - 1 && !stopRequested) await sleep(globalThis.JOB_ASSIST_PACE_MS ?? AUTO_PACE_MS);
+      }
+    } finally {
+      running = false;
+      const summary = counts.submitted + ' submitted and confirmed, ' + counts.needsYou + ' need you, ' + counts.closed + ' closed, ' + counts.unconfirmed + ' unconfirmed' + (counts.paused ? ', stopped by a security check' : '');
+      lastRunSummary = summary;
+      await S.addLog({ action: 'Auto-apply finished', details: summary });
+      toast('Auto-apply: ' + summary + '.');
+      renderAutoApply();
+    }
+  }
+
+  /** One application, start to finish. Returns how it ended. */
+  async function applyOne(jobId, a) {
+    let job = (await S.get('jobs')).find((j) => j.id === jobId);
+    if (!job || job.status !== ST.SELECTED) return 'skipped';
+    const url = job.applyUrl || job.url;
+    const tab = await chrome.tabs.create({ url, active: false });
+    await S.updateSession({ activeJobId: job.id, activeTabId: tab.id });
+    await S.updateJob(job.id, { status: ST.IN_PROGRESS });
+    await S.addLog({ jobId: job.id, action: 'Auto-apply opened the application', submissionStatus: ST.IN_PROGRESS });
+    let outcome = 'needsYou';
+    try {
+      if (!(await waitForTab(tab.id, 30000))) {
+        await S.updateJob(job.id, { status: ST.MANUAL, manualReason: 'The application page didn’t load' });
+        await S.addLog({ jobId: job.id, url, action: 'Not submitted — page didn’t load', submissionStatus: ST.MANUAL });
+        return (outcome = 'needsYou');
+      }
+      state = await S.getAll();
+      job = state.jobs.find((j) => j.id === jobId);
+      if (!job.tailored && job.description) {
+        await tailorForJob(job, false);
+        state = await S.getAll();
+        job = state.jobs.find((j) => j.id === jobId);
+      }
+      const resume = state.resumes.find((r) => r.id === job.resumeId) || mainResume();
+      const values = {};
+      for (const { key } of R.PROFILE_KEYS) if (state.profile.values[key]) values[key] = state.profile.values[key].trim();
+      let report;
+      try {
+        await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['src/shared/rules.js', 'src/content/filler.js'] });
+        const [res] = await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: (payload) => globalThis.JobAssistFiller.run(payload),
+          args: [{
+            jobId: job.id, profile: values, answers: state.answers, consents: consents(),
+            resume: resume && { label: resume.label, fileName: resume.fileName, type: resume.type, dataUrl: resume.dataUrl },
+            autoSubmit: { jobTitle: job.title, company: job.company, declarations: a.declarations },
+          }],
+        });
+        report = res && res.result;
+      } catch (err) {
+        report = { ok: false, reasons: ['Unsupported page: ' + err.message] };
+      }
+      if (!report) report = { ok: false, reasons: ['Unsupported page: no response from the page'] };
+
+      if (!report.ok && report.expired) {
+        await S.updateJob(job.id, { status: ST.CLOSED, manualReason: report.reasons.join('; ') });
+        await S.addLog({ jobId: job.id, url, action: 'Posting closed — nothing submitted', submissionStatus: ST.CLOSED });
+        return (outcome = 'closed');
+      }
+      if (!report.ok) {
+        // CAPTCHA, security check, sign-in, unsupported page: stop everything.
+        const reason = report.reasons.join('; ');
+        await S.updateJob(job.id, { status: ST.MANUAL, manualReason: reason });
+        await S.updateSession({ paused: true, pauseReason: reason });
+        await S.addLog({ jobId: job.id, url, action: 'Auto-apply stopped — manual action required', submissionStatus: ST.MANUAL, details: reason });
+        return (outcome = 'paused');
+      }
+      const r = report.autoSubmit;
+      if (!r.ok) {
+        await S.updateJob(job.id, { status: ST.AWAITING_BRUNO, manualReason: 'Not submitted automatically: ' + r.problems.join('; ') });
+        await S.addLog({
+          jobId: job.id, url, action: 'Not submitted — needs Bruno', resumeVersion: resume ? resume.label : '',
+          fieldsCompleted: report.filled, fieldsForBruno: r.problems, documentsUploaded: report.uploaded, submissionStatus: 'Prepared, not submitted',
+        });
+        return (outcome = 'needsYou');
+      }
+
+      // Submitted on the page; wait for the site to confirm it.
+      const end = Date.now() + (globalThis.JOB_ASSIST_CONFIRM_MS ?? AUTO_CONFIRM_MS);
+      let latest;
+      while (Date.now() < end) {
+        await sleep(500);
+        latest = (await S.get('jobs')).find((j) => j.id === jobId);
+        if (latest.status === ST.SUBMITTED || (await S.get('session')).paused) break;
+      }
+      const record = {
+        at: new Date().toISOString(), employer: job.company, title: job.title, url,
+        resume: resume ? resume.fileName : '', fields: r.fields, declarations: r.declarations, leftBlank: r.leftBlank,
+        confirmed: latest && latest.status === ST.SUBMITTED,
+      };
+      await S.updateJob(job.id, { submission: record });
+      const entry = {
+        jobId: job.id, url, resumeVersion: resume ? resume.label : '',
+        fieldsCompleted: r.fields.map((f) => f.label + ': ' + f.value), documentsUploaded: report.uploaded,
+        details: 'Declarations accepted: ' + (r.declarations.join(' | ') || 'none') + '. Left blank (optional): ' + (r.leftBlank.join(', ') || 'none') + '.',
+      };
+      if (record.confirmed) {
+        await S.addLog(Object.assign(entry, { action: 'Submitted automatically — confirmed by ' + job.company + '’s application page', submissionStatus: ST.SUBMITTED }));
+        return (outcome = 'submitted');
+      }
+      if ((await S.get('session')).paused) return (outcome = 'paused');
+      await S.updateJob(job.id, { status: ST.MANUAL, manualReason: 'Submit was clicked but the site didn’t confirm. Check this application before trying again.' });
+      await S.addLog(Object.assign(entry, { action: 'Submit clicked automatically — NOT confirmed by the site', submissionStatus: ST.MANUAL }));
+      return (outcome = 'unconfirmed');
+    } finally {
+      try {
+        // Leave the tab open only when a security check stopped everything, so
+        // Bruno can see it. Jobs that need him are reopened from the list.
+        if (outcome !== 'paused') await chrome.tabs.remove(tab.id);
+      } catch (_) {}
+      if (outcome !== 'paused') await S.updateSession({ activeJobId: null, activeTabId: null });
+    }
+  }
 
   async function findJobs() {
     if (busy) return;
@@ -931,6 +1195,12 @@
     });
 
     $('#job-filter').addEventListener('change', renderJobs);
+    // autoApply must run straight from the click so Chrome can ask for permission.
+    $('#autoapply-start').addEventListener('click', () => autoApply());
+    $('#autoapply-stop').addEventListener('click', () => {
+      stopRequested = true;
+      $('#autoapply-status').textContent = 'Stopping after this application…';
+    });
     $('#setup-file').addEventListener('change', async (e) => {
       const file = e.target.files[0];
       e.target.value = '';

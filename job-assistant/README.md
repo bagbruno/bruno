@@ -1,13 +1,13 @@
 # Job Application Assistant (user-controlled)
 
-A Chrome extension that finds jobs matching Bruno's search, tailors his resume for each one, fills routine fields when he opens an application, and prepares outreach to the right people — all inside **his own signed-in Chrome**. It's a browser assistant, not a bot: it never clicks Submit, never sends a connection request or message, and stops at anything unusual.
+A Chrome extension that finds jobs matching Bruno's search, tailors his resume for each one, fills routine fields when he opens an application, and prepares outreach to the right people — all inside **his own signed-in Chrome**. If Bruno approves it, it also submits applications automatically on company application pages hosted by Greenhouse, Lever and Ashby, after checking each one (see "Automatic submission"). It never sends a connection request or message, never disguises itself, and stops at anything unusual.
 
 ## How Bruno uses it
 
 1. **Profile tab (once):** contact details, your resume as a Word file, your answers to common screening questions, and optionally a Claude API key.
 2. **Jobs tab:** set **Location**, **Minimum salary** and **Job positions**, click **Find jobs**. Matches appear best-first with salary (or "Salary unknown") and why they matched.
 3. Click **Open application** on a job. The resume is tailored for it while the page loads.
-4. Click **Fill routine fields**, answer anything outlined on the page, check everything, and click **Submit** on the site yourself. When the site shows its confirmation, the job is marked submitted.
+4. Click **Fill routine fields**, answer anything outlined on the page, check everything, and click **Submit** on the site yourself. When the site shows its confirmation, the job is marked submitted. Or, after approving automatic submission, click **Auto-apply** and it does this for every eligible job, leaving the rest for you.
 5. Open **People to contact** on the job, pick the recruiter, hiring manager and a teammate from the LinkedIn searches, and paste their names and profile links. Messages are drafted in the **Outreach** tab for your approval; you send them on LinkedIn.
 
 > **Disclosure.** This tool doesn't guarantee that any website allows its use, and it isn't built to be "undetectable". Websites can change their terms and page layouts at any time, and field detection can be wrong. Bruno is responsible for checking every answer, for each final submission, and for every outreach message. Check the current terms of each site before using the assistant there.
@@ -24,7 +24,7 @@ A Chrome extension that finds jobs matching Bruno's search, tailors his resume f
 | Documents | Attaches the resume version Bruno chose for that job to a field clearly labelled resume/CV. Any other upload, such as a cover letter, is left for Bruno. |
 | Screening answers | Work authorization, sponsorship, relocation, salary expectation, start date and "how did you hear about us" are filled **only with Bruno's own saved wording**, and outlined for him to check. If no answer is saved, or it doesn't match the choices, the question is left for him. |
 | Left for Bruno | All other free-text and multiple-choice questions, consent and attestation boxes, and every sensitive topic: gender, race/ethnicity, veteran status, disability, date of birth/age, government IDs, criminal/background, religion/marital status, signatures, passwords, banking. These are outlined in orange or red on the page. |
-| Submit | **Never** clicked by the assistant. When Bruno clicks Submit himself, the click is logged. The job is marked **submitted only when confirmed**: either the site shows an "application received" page, or Bruno confirms "Mark submitted" (two clicks). |
+| Submit | Clicked by the assistant only under an approved automatic submission on Greenhouse / Lever / Ashby pages, after every pre-submit check passes. Otherwise Bruno clicks it, and the click is logged. The job is marked **submitted only when confirmed**: either the site shows an "application received" page, or Bruno confirms "Mark submitted" (two clicks). |
 | People | For each job, three LinkedIn searches: recruiter/talent acquisition, the likely hiring manager or team leader, and someone in the same role. Bruno picks each person himself; LinkedIn doesn't allow automated people searches, so the assistant never reads LinkedIn pages. Each person gets a short, job-specific connection note (within LinkedIn's 200-character limit) and a follow-up message. Contacts are de-duplicated by profile link across all jobs, so nobody is messaged twice. |
 | Outreach | LinkedIn connection notes and messages are saved as **drafts awaiting approval**. Even after approval, the assistant only opens the profile and copies the text. Bruno pastes it and clicks Send himself, then marks it sent. Nothing is ever typed or clicked on LinkedIn. |
 | Safety stop | Before filling, and while watching the page afterwards, the assistant stops if it sees a visible CAPTCHA, a security or identity check, an "unusual activity", restricted-account, automation or rate-limit message, a sign-in or password prompt, a verification-code prompt, or a page with no recognisable form (including forms embedded from another site). It then labels the job **Manual action required**, pauses everything, and shows the reason. It never tries to solve or get around any of these. Bruno handles it, then clicks "I've handled it myself — resume". |
@@ -40,6 +40,30 @@ A Chrome extension that finds jobs matching Bruno's search, tailors his resume f
 | Other sites (employer careers pages, Greenhouse, Lever, Workday, etc.) | Fills routine fields on Bruno's click, with a reminder that the site's own terms apply. | — |
 
 When Bruno asks for something the assistant doesn't support (filling on a blocked platform, opening a second application, sending outreach), it shows a warning and does nothing. The table lives in `src/shared/rules.js` (`PLATFORM_RULES`). It's a conservative reading of current terms and should be reviewed as those terms change.
+
+## Automatic submission (opt-in)
+
+Off until Bruno approves it in **Profile › Automatic submission**, which lists every detail that will be submitted (profile, screening answers, main resume) and the two declarations he can let it accept: the employer's applicant privacy notice, and certifying the application is true and complete. Changing any detail cancels the approval until he approves again.
+
+**Auto-apply** on the Jobs tab then works through matching jobs (match score 60+) one at a time:
+
+| Where | What happens |
+|---|---|
+| Company application pages on Greenhouse, Lever, Ashby | Opened, resume tailored, form filled, checked, and **submitted** if every check passes |
+| Workday, Indeed, Glassdoor, other sites | Never submitted automatically. Prepared when Bruno opens them; he submits |
+| LinkedIn | Always by hand |
+
+Before each automatic submission, all of these must pass, or the application is left for Bruno with the reasons listed:
+- the page is for the right job title;
+- the resume on the form is the one chosen (tailored) for that job;
+- every required question has an answer from his profile or saved answers; unknown required questions block it;
+- choices match his saved answers exactly; a mismatch blocks it;
+- anything the site had already filled in agrees with his profile;
+- the only declarations accepted are the ones he approved; any other required declaration (arbitration, background-check consent, etc.) blocks it; optional ones (marketing opt-ins) are left unticked;
+- demographic, disability and veteran questions are never answered; if one is required, it blocks it;
+- the form passes its own validation and has exactly one Submit button.
+
+A job is marked **submitted only when the site shows its confirmation page**. If Submit was clicked and no confirmation appears within 45 seconds, the job is flagged for Bruno to check and is not retried. A CAPTCHA, security check or sign-in prompt stops the whole run. Each submission record keeps the time, employer, job, page, resume file, every field label and value sent, declarations accepted, and optional fields left blank. Submissions are spaced 20 seconds apart, at most 25 a day. These are fixed and disclosed courtesy limits, not attempts to look human; nothing disguises the automation.
 
 ## Needs setting up by Bruno
 

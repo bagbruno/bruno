@@ -1,14 +1,16 @@
 {
   "name": "job-assistant",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
-  "description": "User-controlled Chrome extension that helps fill routine job-application fields. Never submits or sends anything.",
+  "description": "Chrome extension that finds jobs, tailors the resume, and fills and (with approval, on supported sites) submits applications.",
   "scripts": {
     "test": "node --test tests/*.test.js",
     "test:e2e": "node tests/filler.e2e.js",
     "test:extension": "node tests/extension.e2e.js",
     "test:workflow": "node tests/workflow.e2e.js",
-    "test:all": "npm test && npm run test:e2e && npm run test:extension && npm run test:workflow"
+    "test:autosubmit": "node tests/autosubmit.e2e.js",
+    "test:autoapply": "node tests/autoapply.e2e.js",
+    "test:all": "npm test && npm run test:e2e && npm run test:extension && npm run test:workflow && npm run test:autosubmit && npm run test:autoapply"
   },
   "devDependencies": {
     "playwright": "^1.50.0"

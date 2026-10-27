@@ -311,8 +311,33 @@
   // Entry point
   // ---------------------------------------------------------------------------
 
+  function isRequired(el, label) {
+    if (el.type === 'radio' && el.name) {
+      const group = Array.from(document.querySelectorAll('input[type="radio"][name="' + CSS.escape(el.name) + '"]'));
+      if (group.some((r) => r.required || r.getAttribute('aria-required') === 'true')) return true;
+    }
+    return !!(el.required || el.getAttribute('aria-required') === 'true' || /\*\s*$|\(required\)/i.test(label));
+  }
+
+  // What a field currently holds, as Bruno would read it.
+  function shownValue(el) {
+    if (el.type === 'file') return el.files && el.files[0] ? el.files[0].name : '';
+    if (el.type === 'checkbox') return el.checked ? 'Checked' : '';
+    if (el.type === 'radio') {
+      const group = el.name ? Array.from(document.querySelectorAll('input[type="radio"][name="' + CSS.escape(el.name) + '"]')) : [el];
+      const on = group.find((r) => r.checked);
+      return on ? (on.labels && on.labels[0] ? textOf(on.labels[0]) : on.value) : '';
+    }
+    if (el.tagName === 'SELECT') return el.value ? textOf(el.options[el.selectedIndex]) || el.value : '';
+    return el.value || '';
+  }
+
+  const same = (a, b) => String(a || '').trim().toLowerCase().replace(/\s+/g, ' ') === String(b || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
   /**
-   * @param {object} payload { jobId, profile: {key: value}, resume: {label, fileName, type, dataUrl} | null }
+   * @param {object} payload { jobId, profile: {key: value}, answers, consents,
+   *   resume: {label, fileName, type, dataUrl} | null,
+   *   autoSubmit?: { jobTitle, company, declarations: ['privacy', 'accuracy'] } }
    */
   async function run(payload) {
     activeJobId = payload.jobId;
@@ -327,6 +352,9 @@
     }
 
     const report = { ok: true, filled: [], uploaded: [], needsBruno: [], alreadyAnswered: [] };
+    // Every field and what happened to it, for the pre-submit checks.
+    const items = [];
+    const track = (el, label, c, status, reason) => items.push({ el, label, kind: c.kind, key: c.key, status, reason, required: isRequired(el, label) });
     const seenGroups = new Set();
     for (const el of els) {
       if (el.type === 'radio' && el.name) {
@@ -344,47 +372,57 @@
         const answer = (payload.answers || {})[c.key];
         if (!isEmpty(el)) {
           report.alreadyAnswered.push(label);
+          track(el, label, c, 'prefilled');
         } else if (!answer) {
           mark(el, OUTLINE.attention, 'no saved answer — answer this yourself');
           report.needsBruno.push({ label, reason: 'No saved answer for this question' });
+          track(el, label, c, 'left', 'no saved answer');
         } else if (fillAnswer(el, answer)) {
           mark(el, OUTLINE.attention, 'filled from your saved answer — check it');
           report.filled.push(label + ' (your saved answer)');
+          track(el, label, c, 'filled');
         } else {
           mark(el, OUTLINE.attention, 'your saved answer doesn’t match the choices');
           report.needsBruno.push({ label, reason: 'Your saved answer doesn’t match the choices here' });
+          track(el, label, c, 'left', 'saved answer doesn’t match the choices');
         }
         continue;
       }
       if (c.kind === 'sensitive') {
         mark(el, OUTLINE.sensitive, 'sensitive (' + c.reason + ') — answer this yourself');
         report.needsBruno.push({ label, reason: 'Sensitive: ' + c.reason });
+        track(el, label, c, isEmpty(el) ? 'left' : 'prefilled', c.reason);
         continue;
       }
       if (c.kind === 'unclear') {
         if (isEmpty(el)) {
           mark(el, OUTLINE.attention, c.reason + ' — answer this yourself');
           report.needsBruno.push({ label, reason: c.reason });
-        }
+          track(el, label, c, 'left', c.reason);
+        } else track(el, label, c, 'prefilled');
         continue;
       }
       if (!isEmpty(el)) {
         report.alreadyAnswered.push(label);
+        track(el, label, c, 'prefilled');
         continue;
       }
       if (c.kind === 'resume') {
         if (!payload.resume) {
           mark(el, OUTLINE.attention, 'no resume version chosen for this job');
           report.needsBruno.push({ label, reason: 'No resume version selected for this job' });
+          track(el, label, c, 'left', 'no resume chosen');
           continue;
         }
         try {
           await attachFile(el, payload.resume);
           mark(el, OUTLINE.filled, 'attached ' + payload.resume.fileName);
           report.uploaded.push(payload.resume.fileName + ' (' + payload.resume.label + ')');
+          track(el, label, c, 'filled');
         } catch (err) {
           mark(el, OUTLINE.attention, 'could not attach resume');
           report.needsBruno.push({ label, reason: 'Could not attach resume automatically — upload it yourself' });
+          track(el, label, c, 'left', 'resume upload failed');
         }
         continue;
       }
@@ -393,25 +431,122 @@
       if (!value) {
         mark(el, OUTLINE.attention, 'no profile value for ' + c.key);
         report.needsBruno.push({ label, reason: 'No value in your profile for this field' });
+        track(el, label, c, 'left', 'no profile value');
         continue;
       }
       const ok = el.tagName === 'SELECT' ? fillSelect(el, value) : (setNativeValue(el, value), true);
       if (ok) {
         mark(el, OUTLINE.filled, 'filled from your profile — please check');
         report.filled.push(label);
+        track(el, label, c, 'filled');
       } else {
         mark(el, OUTLINE.attention, 'no matching option');
         report.needsBruno.push({ label, reason: 'No option matches your profile value' });
+        track(el, label, c, 'left', 'no matching option');
       }
     }
 
     startWatching();
+    if (payload.autoSubmit) {
+      report.autoSubmit = verifyAndSubmit(payload, items);
+      if (!report.autoSubmit.ok) {
+        banner('stop', 'Not submitted — needs you', report.autoSubmit.problems.concat(['Fix these yourself and click Submit, or skip this job.']));
+      } else {
+        banner('info', 'Submitting under your approval', ['The application is being sent. The log records exactly what was submitted.']);
+      }
+      return report;
+    }
     banner('info', 'Job Assistant filled ' + report.filled.length + ' routine field(s)', [
       report.needsBruno.length + ' field(s) outlined in orange/red need your answer.',
       report.uploaded.length ? 'Attached: ' + report.uploaded.join(', ') : 'No documents attached.',
-      'Check every answer. You make the final Submit click — the assistant never will.',
+      'Check every answer. You make the final Submit click.',
     ]);
     return report;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Automatic submission: every check must pass, or nothing is submitted.
+  // ---------------------------------------------------------------------------
+
+  function verifyAndSubmit(payload, items) {
+    const auto = payload.autoSubmit;
+    const problems = [];
+    const approved = new Set(auto.declarations || []);
+
+    // The page must be for this job.
+    const pageText = (document.title + ' ' + Array.from(document.querySelectorAll('h1, h2')).map(textOf).join(' ')).toLowerCase();
+    const words = String(auto.jobTitle || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(' ').filter((w) => w.length > 2 && !/^(senior|junior|remote|the|and|for)$/.test(w));
+    const seen = words.filter((w) => pageText.includes(w));
+    if (!words.length || seen.length / words.length < 0.7) problems.push('This page doesn’t look like the “' + auto.jobTitle + '” application');
+
+    // Every field: answered reliably, approved, consistent with the profile.
+    for (const it of items) {
+      const el = it.el;
+      if (el.type === 'checkbox' && it.kind === 'sensitive' && it.status === 'left') {
+        const decl = R.declarationFor(it.label);
+        if (decl && approved.has(decl)) {
+          el.click();
+          it.status = 'declaration';
+          it.declaration = decl;
+          continue;
+        }
+        if (it.required) problems.push('Declaration you haven’t approved: “' + it.label + '”');
+        else it.status = 'left-optional';
+        continue;
+      }
+      if (it.status === 'left') {
+        if (it.required) problems.push('Required question it can’t answer reliably: “' + it.label + '” (' + it.reason + ')');
+        else it.status = 'left-optional';
+        continue;
+      }
+      if (it.status === 'prefilled') {
+        const expected = it.kind === 'routine' ? payload.profile[it.key] : it.kind === 'answer' ? (payload.answers || {})[it.key] : null;
+        const shown = shownValue(el);
+        if (expected && !same(shown, expected) && !(el.tagName === 'SELECT' && same(el.value, expected))) {
+          problems.push('Conflicting information: “' + it.label + '” already says “' + shown + '” but your profile says “' + expected + '”');
+        }
+        if (it.kind !== 'routine' && it.kind !== 'answer' && it.kind !== 'resume') problems.push('A field was already filled in and can’t be checked: “' + it.label + '”');
+      }
+    }
+
+    // The right resume.
+    const files = items.filter((it) => it.kind === 'resume');
+    if (!files.length) problems.push('No resume upload field found');
+    for (const it of files) {
+      const name = shownValue(it.el);
+      if (!payload.resume || name !== payload.resume.fileName) problems.push('Resume on the form (“' + (name || 'none') + '”) isn’t the one chosen for this job');
+    }
+
+    // The form's own validation, and exactly one Submit button.
+    const form = (files[0] && files[0].el.form) || document.querySelector('form');
+    if (!form) problems.push('No application form found');
+    if (form && !problems.length && !form.checkValidity()) {
+      const bad = Array.from(form.elements).filter((e) => e.willValidate && !e.checkValidity()).map((e) => labelFor(e) || e.name);
+      problems.push('The form reports missing or invalid answers: ' + bad.join(', '));
+    }
+    const buttons = form
+      ? Array.from(form.querySelectorAll('button, input[type="submit"]')).filter((b) => isVisible(b) && !b.disabled && (b.type === 'submit' || /^(submit|submit application|apply|apply now|send application)$/i.test(textOf(b) || b.value || '')))
+      : [];
+    if (form && buttons.length !== 1) problems.push(buttons.length ? 'More than one possible Submit button' : 'No Submit button found');
+
+    if (problems.length) {
+      for (const it of items) if (problems.some((p) => p.includes('“' + it.label + '”'))) mark(it.el, OUTLINE.sensitive, 'needs you before submitting');
+      return { ok: false, problems };
+    }
+
+    const fields = items
+      .filter((it) => it.status !== 'left-optional' || shownValue(it.el))
+      .map((it) => ({ label: it.label, value: shownValue(it.el), source: it.status === 'declaration' ? 'approved declaration (' + it.declaration + ')' : it.status }));
+    const declarations = items.filter((it) => it.status === 'declaration').map((it) => it.label);
+    const leftBlank = items.filter((it) => it.status === 'left-optional' && !shownValue(it.el)).map((it) => it.label);
+
+    submitClicked = true;
+    send({ type: 'auto-submitted', jobId: activeJobId, url: location.href });
+    // Click after this report has been returned: submitting navigates the
+    // page, which would otherwise lose the report on its way to the panel.
+    const button = buttons[0];
+    setTimeout(() => button.click(), 300);
+    return { ok: true, fields, declarations, leftBlank, button: textOf(button) || button.value || 'Submit' };
   }
 
   globalThis.JobAssistFiller = { run, snapshot: () => snapshot(controls().length), classifyAll: () => controls().map((el) => ({ d: describe(el), c: R.classifyField(describe(el)) })) };
