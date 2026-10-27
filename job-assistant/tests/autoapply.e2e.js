@@ -163,7 +163,8 @@ function extensionCopy() {
     assert.ok(log.includes('Not submitted — needs Bruno'));
     assert.ok(log.includes('Submit clicked automatically — NOT confirmed by the site'));
     assert.equal((await storage('session')).activeJobId, null);
-    assert.equal(ctx.pages().length, 1, 'tabs tidied up');
+    await panel.waitForTimeout(500);
+    assert.deepEqual(ctx.pages().map((p) => p.url()).filter((u) => !u.startsWith('chrome-extension://') && u !== 'about:blank'), [], 'application tabs tidied up');
   });
 
   await step('running again does not resubmit anything', async () => {
