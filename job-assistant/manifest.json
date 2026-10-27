@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "Job Application Assistant (user-controlled)",
   "short_name": "Job Assistant",
-  "version": "0.2.0",
-  "description": "Finds jobs that match Bruno's search, tailors his resume, fills routine fields on applications he opens, and prepares outreach for his approval. Never submits or sends anything itself.",
+  "version": "0.3.0",
+  "description": "Finds jobs matching Bruno's search, tailors his resume, fills applications, and \u2014 only with his approval, on Greenhouse, Lever and Ashby pages \u2014 submits them after checking each one.",
   "minimum_chrome_version": "116",
   "permissions": [
     "storage",
