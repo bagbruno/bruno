@@ -181,6 +181,32 @@
     el.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
+  // Fill a screening question with Bruno's saved wording. Choices must match
+  // his answer clearly; otherwise it's left for him.
+  function fillAnswer(el, answer) {
+    const want = String(answer).trim().toLowerCase();
+    const same = (t) => {
+      const x = String(t || '').trim().toLowerCase();
+      return x === want || (want.length >= 2 && (x.startsWith(want + ' ') || x.startsWith(want + ',') || x.startsWith(want + '.')));
+    };
+    if (el.tagName === 'SELECT') {
+      const opt = Array.from(el.options).find((o) => o.value && (same(o.text) || same(o.value)));
+      if (!opt) return false;
+      setNativeValue(el, opt.value);
+      return true;
+    }
+    if (el.type === 'radio') {
+      const group = el.name ? Array.from(document.querySelectorAll('input[type="radio"][name="' + CSS.escape(el.name) + '"]')) : [el];
+      const pick = group.find((r) => same(r.labels && r.labels[0] ? textOf(r.labels[0]) : '') || same(r.value));
+      if (!pick) return false;
+      pick.click();
+      return pick.checked;
+    }
+    if (el.type === 'checkbox') return false;
+    setNativeValue(el, answer);
+    return true;
+  }
+
   function isEmpty(el) {
     if (el.type === 'radio') return !document.querySelector('input[type="radio"][name="' + CSS.escape(el.name) + '"]:checked');
     if (el.type === 'checkbox') return !el.checked;
@@ -237,6 +263,8 @@
   }
 
   let listening = false;
+  let submitClicked = false;
+  let confirmed = false;
 
   function startWatching() {
     if (watcher) return;
@@ -246,8 +274,16 @@
       timer = setTimeout(() => {
         // After submission the form disappears; that's expected, so only the
         // CAPTCHA / security / sign-in checks apply here.
-        const result = R.assessPage(Object.assign(snapshot(1), { url: location.href }));
-        if (result.stop) safetyStop(result.reasons);
+        const snap = snapshot(1);
+        if (submitClicked && !confirmed && R.isConfirmation(snap.text)) {
+          confirmed = true;
+          send({ type: 'submit-confirmed', jobId: activeJobId, url: location.href });
+          banner('info', 'Application submitted', ['The site confirmed your application. It’s marked submitted in the log.']);
+          return;
+        }
+        const result = R.assessPage(Object.assign(snap, { url: location.href }));
+        const reasons = result.reasons.filter((r) => !/^Posting closed/.test(r));
+        if (reasons.length) safetyStop(reasons);
       }, 400);
     });
     watcher.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
@@ -256,6 +292,7 @@
 
     const onSubmit = (e) => {
       if (!e.isTrusted || stopped) return; // only Bruno's own action counts
+      submitClicked = true;
       send({ type: 'submit-observed', jobId: activeJobId, url: location.href });
     };
     document.addEventListener('submit', onSubmit, true);
@@ -283,8 +320,8 @@
     const check = R.assessPage(snapshot(els.length));
     if (check.stop) {
       stopped = true;
-      banner('stop', 'Job Assistant stopped — manual action required', check.reasons);
-      return { ok: false, reasons: check.reasons };
+      banner('stop', check.expired ? 'Job Assistant stopped — this posting looks closed' : 'Job Assistant stopped — manual action required', check.reasons);
+      return { ok: false, reasons: check.reasons, expired: !!check.expired };
     }
 
     const report = { ok: true, filled: [], uploaded: [], needsBruno: [], alreadyAnswered: [] };
@@ -301,6 +338,22 @@
       const label = d.label || d.ariaLabel || d.placeholder || d.name || d.id || '(unlabelled field)';
       const c = R.classifyField(d);
 
+      if (c.kind === 'answer') {
+        const answer = (payload.answers || {})[c.key];
+        if (!isEmpty(el)) {
+          report.alreadyAnswered.push(label);
+        } else if (!answer) {
+          mark(el, OUTLINE.attention, 'no saved answer — answer this yourself');
+          report.needsBruno.push({ label, reason: 'No saved answer for this question' });
+        } else if (fillAnswer(el, answer)) {
+          mark(el, OUTLINE.attention, 'filled from your saved answer — check it');
+          report.filled.push(label + ' (your saved answer)');
+        } else {
+          mark(el, OUTLINE.attention, 'your saved answer doesn’t match the choices');
+          report.needsBruno.push({ label, reason: 'Your saved answer doesn’t match the choices here' });
+        }
+        continue;
+      }
       if (c.kind === 'sensitive') {
         mark(el, OUTLINE.sensitive, 'sensitive (' + c.reason + ') — answer this yourself');
         report.needsBruno.push({ label, reason: 'Sensitive: ' + c.reason });

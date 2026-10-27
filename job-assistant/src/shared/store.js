@@ -12,6 +12,16 @@
     outreach: [],
     log: [],
     session: { activeJobId: null, activeTabId: null, paused: false, pauseReason: '' },
+    // The three search settings Bruno adjusts.
+    search: { location: '', minSalary: '', positions: '' },
+    // Company job boards searched by "Find jobs". Seeded once with defaults.
+    sources: null,
+    // Bruno's own answers to common screening questions.
+    answers: {},
+    // People Bruno may contact, de-duplicated by LinkedIn profile URL.
+    contacts: [],
+    settings: { apiKey: '', autoDiscover: false, mainResumeId: null },
+    discovery: { lastRun: null, summary: null },
   };
 
   const MAX_LOG = 5000;
@@ -22,12 +32,12 @@
 
   async function get(key) {
     const out = await chrome.storage.local.get(key);
-    return out[key] === undefined ? structuredClone(DEFAULTS[key]) : out[key];
+    return out[key] === undefined || out[key] === null ? structuredClone(DEFAULTS[key]) : out[key];
   }
 
   async function getAll() {
     const out = await chrome.storage.local.get(Object.keys(DEFAULTS));
-    for (const k of Object.keys(DEFAULTS)) if (out[k] === undefined) out[k] = structuredClone(DEFAULTS[k]);
+    for (const k of Object.keys(DEFAULTS)) if (out[k] === undefined || out[k] === null) out[k] = structuredClone(DEFAULTS[k]);
     return out;
   }
 

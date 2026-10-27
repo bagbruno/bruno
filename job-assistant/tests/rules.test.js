@@ -19,8 +19,7 @@ test('routine fields map to profile keys', () => {
 test('sensitive fields are never routine', () => {
   for (const label of [
     'Gender', 'Race / Ethnicity', 'Are you a protected veteran?', 'Disability status', 'Date of birth',
-    'Desired salary', 'Will you now or in the future require visa sponsorship?',
-    'Are you legally authorized to work in the United States?', 'Have you ever been convicted of a felony?',
+    'Have you ever been convicted of a felony?', 'Citizenship',
     'Social Security Number', 'Signature', 'I agree to the privacy policy', 'Password',
     'Email me about salary updates', // mixed: sensitive wins over routine
   ]) {
@@ -32,7 +31,6 @@ test('sensitive fields are never routine', () => {
 test('questions and free text are left for Bruno', () => {
   assert.equal(field({ tag: 'textarea', label: 'Cover letter' }).kind, 'unclear');
   assert.equal(field({ label: 'Why do you want to work at our company?' }).kind, 'unclear');
-  assert.equal(field({ label: 'How did you hear about us' }).kind, 'unclear');
   assert.equal(field({ type: 'checkbox', label: 'Email' }).kind, 'unclear');
   assert.equal(field({ type: 'radio', label: 'City' }).kind, 'unclear');
   assert.equal(field({ label: 'Please describe a project where you had to manage a difficult city stakeholder' }).kind, 'unclear');
@@ -54,7 +52,7 @@ test('platform rules', () => {
 const base = { url: 'https://jobs.example.com/apply', text: '', iframeSrcs: [], captchaElementCount: 0, visiblePasswordFields: 0, fillableFieldCount: 5 };
 
 test('assessPage passes a normal form', () => {
-  assert.deepEqual(R.assessPage(base), { stop: false, reasons: [] });
+  assert.deepEqual(R.assessPage(base), { stop: false, reasons: [], expired: false });
 });
 
 test('assessPage stops on captcha, security text, sign-in, unsupported, blocked platform', () => {
@@ -98,4 +96,41 @@ test('import parsing requires urls and caps size', () => {
   const capped = R.parseJobImport(many, 'many.csv');
   assert.equal(capped.jobs.length, 200);
   assert.match(capped.errors[0], /first 200/);
+});
+
+test('screening questions use saved answers; demographics and attestations never do', () => {
+  const cases = {
+    'Desired salary': 'salaryExpectation', 'What are your salary expectations?': 'salaryExpectation',
+    'Will you now or in the future require visa sponsorship?': 'sponsorship',
+    'Are you legally authorized to work in the United States?': 'workAuthorization',
+    'Are you willing to relocate?': 'relocate', 'When can you start?': 'startDate', 'How did you hear about us?': 'referralSource',
+  };
+  for (const [label, key] of Object.entries(cases)) {
+    const c = field({ label });
+    assert.equal(c.kind, 'answer', label);
+    assert.equal(c.key, key, label);
+  }
+  for (const label of ['Are you a protected veteran?', 'Disability status', 'Gender', 'I certify that the information is accurate', 'Have you been convicted of a crime? (relocation not required)']) {
+    assert.notEqual(field({ label }).kind, 'answer', label);
+  }
+  assert.equal(field({ type: 'file', label: 'Relocation document' }).kind, 'unclear');
+});
+
+test('closed postings and confirmation pages are recognised', () => {
+  for (const text of ['This job is no longer accepting applications', 'Sorry, this position has been filled', 'The page you are looking for could not be found']) {
+    const r = R.assessPage(Object.assign({}, base, { text }));
+    assert.equal(r.expired, true, text);
+    assert.equal(r.stop, true);
+  }
+  assert.equal(R.assessPage(Object.assign({}, base, { text: 'Call our Atlanta office at 404-555-0100' })).expired, false);
+  assert.equal(R.isConfirmation('Thank you for applying to Acme!'), true);
+  assert.equal(R.isConfirmation('We’ve received your application'), true);
+  assert.equal(R.isConfirmation('Submit your application below'), false);
+});
+
+test('job details from a tab title only', () => {
+  assert.deepEqual(R.jobFromTabTitle('(3) Account Executive | KnowBe4 | LinkedIn'), { title: 'Account Executive', company: 'KnowBe4', location: '' });
+  assert.deepEqual(R.jobFromTabTitle('Account Executive - KnowBe4 - Clearwater, FL - Indeed.com'), { title: 'Account Executive', company: 'KnowBe4', location: 'Clearwater, FL' });
+  assert.deepEqual(R.jobFromTabTitle('Job Application for Account Executive at ThreatLocker'), { title: 'Account Executive', company: 'ThreatLocker', location: '' });
+  assert.equal(R.jobFromTabTitle('').title, '');
 });
