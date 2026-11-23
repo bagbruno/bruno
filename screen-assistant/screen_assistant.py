@@ -282,8 +282,8 @@ class Telegram:
             raise SystemExit("Telegram is not set up - run: python screen_assistant.py setup")
         self.base = f"https://api.telegram.org/bot{self.token}"
 
-    def call(self, method: str, timeout: float = 20, **params):
-        r = self.requests.post(f"{self.base}/{method}", data=params, timeout=timeout)
+    def call(self, method: str, http_timeout: float = 20, **params):
+        r = self.requests.post(f"{self.base}/{method}", data=params, timeout=http_timeout)
         r.raise_for_status()
         return r.json()["result"]
 
@@ -455,7 +455,7 @@ class App:
                 params = {"timeout": 25}
                 if offset is not None:
                     params["offset"] = offset
-                updates = tg.call("getUpdates", timeout=35, **params)
+                updates = tg.call("getUpdates", http_timeout=35, **params)
             except Exception as e:
                 log.error("Telegram polling error: %s", e)
                 self.stop.wait(5)
