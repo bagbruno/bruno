@@ -1,0 +1,6 @@
+anthropic>=2.13
+mss>=10.0
+Pillow>=10.0
+pynput>=1.7
+pystray>=0.19
+requests>=2.31

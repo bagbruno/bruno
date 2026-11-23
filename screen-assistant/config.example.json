@@ -1,0 +1,15 @@
+{
+  "anthropic_api_key": "",
+  "model": "claude-opus-5-5",
+  "effort": "medium",
+  "notifier": "ntfy",
+  "ntfy": {"server": "https://ntfy.sh", "topic": ""},
+  "telegram": {"bot_token": "", "chat_id": ""},
+  "modes": {"hotkey": true, "watch": false, "chat": true, "tray_icon": true},
+  "hotkey": "<ctrl>+<alt>+q",
+  "watch_toggle_hotkey": "<ctrl>+<alt>+w",
+  "watch": {"interval_seconds": 3, "change_threshold": 0.005, "min_seconds_between_answers": 5},
+  "monitor": 1,
+  "max_image_edge": 1920,
+  "extra_instructions": ""
+}
